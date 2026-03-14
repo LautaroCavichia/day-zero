@@ -28,7 +28,7 @@ import session_state as ss
 from audio_utils import LIVE_API_INPUT_SAMPLE_RATE
 from config import settings
 from core.formatters import format_pitch_context
-from core.gemini_client import generate_json, get_client
+from core.gemini_client import generate_json, get_client, _translate_gemini_error
 from core.models import PitchContext
 from fastapi import WebSocket, WebSocketDisconnect
 from google import genai
@@ -61,6 +61,13 @@ Your interview flow:
    - "Why you? Why now?"
 4. If the founder trails off or repeats themselves, interject naturally and redirect.
 5. At the end of the session, give honest, direct feedback — both strengths and the single biggest concern.
+
+SLIDE AWARENESS:
+- The founder may be presenting a pitch deck. When they advance a slide, you'll receive a message like:
+  [SLIDE N: <title>] - the founder has moved to this slide.
+- Reference the current slide naturally in your questions. If something on the slide is vague or bold,
+  probe it immediately. E.g. "Your slide says '$50M ARR by year 3' — walk me through the assumptions."
+- Don't acknowledge the slide transition mechanically. React as a live interviewer would.
 
 Tone: Conversational, never robotic. You speak in short, punchy sentences. You think out loud sometimes.
 Context: This is a simulated YC interview to help the founder prepare. Be genuinely useful, not performatively harsh.
@@ -140,6 +147,13 @@ async def run_live_interview(
                 if exc and not isinstance(exc, WebSocketDisconnect):
                     logger.error("LiveInterview task error: %s", exc)
 
+    except (genai.errors.ClientError, genai.errors.ServerError) as e:
+        api_err = _translate_gemini_error(e)
+        logger.error("LiveInterview Gemini API error: %s", api_err)
+        try:
+            await websocket.send_text(json.dumps({"type": "error", "message": api_err.message}))
+        except Exception:
+            pass
     except Exception as e:
         logger.error("LiveInterview error: %s", e)
         try:
@@ -184,13 +198,37 @@ async def _send_loop(
                 except json.JSONDecodeError:
                     continue
 
-                if ctrl.get("type") == "end_stream":
+                msg_type = ctrl.get("type")
+
+                if msg_type == "end_stream":
                     await gemini_session.send_realtime_input(audio_stream_end=True)
                     logger.info("Audio stream ended: session=%s", session_id)
                     break
 
+                elif msg_type == "slide_change":
+                    # Founder advanced to a new slide.
+                    # Inject a text message into the Live session so Sam knows.
+                    slide_index = ctrl.get("index", 0)
+                    slide_title = ctrl.get("title", f"Slide {slide_index + 1}")
+                    slide_total = ctrl.get("total", "?")
+                    context_msg = (
+                        f"[SLIDE {slide_index + 1} of {slide_total}: {slide_title}] "
+                        f"The founder has advanced to this slide."
+                    )
+                    await gemini_session.send_realtime_input(text=context_msg)
+                    logger.info(
+                        "Slide change injected: session=%s slide=%d/%s title=%s",
+                        session_id,
+                        slide_index + 1,
+                        slide_total,
+                        slide_title,
+                    )
+
     except WebSocketDisconnect:
         pass
+    except (genai.errors.ClientError, genai.errors.ServerError) as e:
+        logger.error("_send_loop Gemini API error: %s", _translate_gemini_error(e))
+        raise _translate_gemini_error(e)
     except Exception as e:
         logger.error("_send_loop error: %s", e)
         raise
@@ -258,6 +296,9 @@ async def _receive_loop(
 
     except WebSocketDisconnect:
         pass
+    except (genai.errors.ClientError, genai.errors.ServerError) as e:
+        logger.error("_receive_loop Gemini API error: %s", _translate_gemini_error(e))
+        raise _translate_gemini_error(e)
     except Exception as e:
         logger.error("_receive_loop error: %s", e)
         raise

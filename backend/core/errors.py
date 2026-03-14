@@ -61,6 +61,35 @@ class GeminiResponseError(AgentError):
         self.raw_response = raw_response
 
 
+class GeminiApiError(AgentError):
+    """
+    Raised when the Gemini API returns a non-2xx HTTP error.
+
+    Wraps ``google.genai.errors.ClientError`` / ``ServerError`` so the rest
+    of the application never needs to import the google-genai error types
+    directly.
+
+    Attributes:
+        status_code: The HTTP status code returned by the API (e.g. 429, 401, 500).
+        error_code:  The API-level error code string (e.g. "RESOURCE_EXHAUSTED").
+        retry_after: Suggested retry delay in seconds, parsed from RetryInfo when
+                     present (None if not provided by the API).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        error_code: str = "",
+        retry_after: float | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.error_code = error_code
+        self.retry_after = retry_after
+
+
 # ── Input validation errors ────────────────────────────────────────────────
 
 

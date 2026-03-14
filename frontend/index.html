@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DayZero — YC-Style Pitch Validation</title>
+  <title>DayZero — AI Pitch Practice</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -15,7 +15,7 @@
       padding: 24px 16px 48px;
     }
 
-    .container { max-width: 860px; margin: 0 auto; }
+    .container { max-width: 940px; margin: 0 auto; }
 
     /* ── Header ──────────────────────────────────────────────────────── */
     header { text-align: center; color: white; margin-bottom: 28px; }
@@ -49,6 +49,8 @@
     .btn-danger   { background: #e53e3e; color: white; }
     .btn-danger:hover:not(:disabled)  { background: #c53030; }
     .btn-ghost    { background: transparent; color: #667eea; border: 2px solid #667eea; }
+    .btn-purple   { background: #764ba2; color: white; }
+    .btn-purple:hover:not(:disabled) { background: #6b3f92; }
 
     /* ── Hero interview card ─────────────────────────────────────────── */
     .interview-hero {
@@ -57,51 +59,64 @@
     }
     .interview-hero h2 { font-size: 1.5rem; }
 
-    .interview-controls {
-      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-      margin: 16px 0;
+    /* ── Two-column interview layout ─────────────────────────────────── */
+    .interview-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 14px;
     }
+    @media (max-width: 680px) { .interview-layout { grid-template-columns: 1fr; } }
 
+    .interview-left, .interview-right { display: flex; flex-direction: column; gap: 12px; }
+
+    /* ── Controls row ────────────────────────────────────────────────── */
+    .interview-controls {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
     .interview-status {
       font-size: 0.9rem; font-weight: 600; color: #667eea;
-      min-width: 140px;
+      min-width: 100px;
     }
 
+    /* ── Audio viz ───────────────────────────────────────────────────── */
     .viz {
-      height: 52px;
+      height: 44px;
       background: #f7fafc;
       border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
       color: #a0aec0; font-size: 0.9rem;
-      margin-bottom: 12px;
       border: 1px solid #e2e8f0;
     }
 
     /* ── Transcript ──────────────────────────────────────────────────── */
     .transcript {
-      max-height: 320px; overflow-y: auto;
-      background: #f7fafc; border-radius: 8px; padding: 12px;
-      margin-top: 8px;
+      max-height: 260px; overflow-y: auto;
+      background: #f7fafc; border-radius: 8px; padding: 10px;
       border: 1px solid #e2e8f0;
+      flex: 1;
     }
-    .turn { margin-bottom: 12px; padding: 10px 12px; border-radius: 6px; }
+    .turn { margin-bottom: 10px; padding: 9px 11px; border-radius: 6px; }
     .turn.founder { background: #e6fffa; border-left: 4px solid #319795; }
     .turn.sam     { background: #fef5e7; border-left: 4px solid #dd6b20; }
-    .turn strong  { display: block; font-size: 0.78rem; text-transform: uppercase;
-                    letter-spacing: 0.5px; margin-bottom: 4px; color: #555; }
+    .turn strong  { display: block; font-size: 0.76rem; text-transform: uppercase;
+                    letter-spacing: 0.5px; margin-bottom: 3px; color: #555; }
+
+    /* ── Section panels ──────────────────────────────────────────────── */
+    .panel {
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .panel h3 { font-size: 0.9rem; color: #667eea; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
 
     /* ── Pipeline progress panel ─────────────────────────────────────── */
-    .pipeline-panel {
-      background: #f7fafc; border-radius: 10px; padding: 16px;
-      margin-bottom: 18px; border: 1px solid #e2e8f0;
-    }
-    .pipeline-panel h3 { font-size: 0.95rem; color: #667eea; margin-bottom: 12px; font-weight: 700; }
-
     .pipeline-steps { display: flex; flex-direction: column; gap: 8px; }
-
     .pipeline-step {
       display: flex; align-items: center; gap: 10px;
-      font-size: 0.9rem; color: #718096; padding: 6px 0;
+      font-size: 0.9rem; color: #718096; padding: 5px 0;
     }
     .step-icon {
       width: 22px; height: 22px; border-radius: 50%;
@@ -109,12 +124,12 @@
       font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
       border: 2px solid #cbd5e0; color: #a0aec0;
     }
-    .pipeline-step.done   .step-icon { background: #38a169; border-color: #38a169; color: white; }
+    .pipeline-step.done    .step-icon { background: #38a169; border-color: #38a169; color: white; }
     .pipeline-step.running .step-icon { background: #667eea; border-color: #667eea; color: white; animation: pulse 1s infinite; }
-    .pipeline-step.error  .step-icon { background: #e53e3e; border-color: #e53e3e; color: white; }
-    .pipeline-step.done   { color: #2d3748; font-weight: 600; }
+    .pipeline-step.error   .step-icon { background: #e53e3e; border-color: #e53e3e; color: white; }
+    .pipeline-step.done    { color: #2d3748; font-weight: 600; }
     .pipeline-step.running { color: #667eea; font-weight: 600; }
-    .pipeline-step.error  { color: #e53e3e; }
+    .pipeline-step.error   { color: #e53e3e; }
 
     @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
 
@@ -234,6 +249,32 @@
 
     .score-pill { display: inline-block; background: #667eea; color: white;
                    padding: 2px 7px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+
+    /* ── Audio deliberation panel ────────────────────────────────────── */
+    .deliberation-live {
+      border: 2px solid #764ba2;
+      background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%);
+    }
+    .persona-speaking {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600;
+      margin-bottom: 10px;
+      animation: pulse 1s infinite;
+    }
+    .delib-transcript {
+      max-height: 260px; overflow-y: auto;
+      background: #f7fafc; border-radius: 8px; padding: 10px;
+      border: 1px solid #e2e8f0; margin-top: 8px;
+    }
+    .delib-turn {
+      margin-bottom: 10px; padding: 10px 12px; border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .delib-turn-name {
+      font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -242,7 +283,7 @@
   <!-- ── Header ── -->
   <header>
     <h1>DayZero</h1>
-    <p>AI-powered YC-style pitch validation — powered by Gemini Live</p>
+    <p>Real-time AI pitch practice — powered by Gemini Live</p>
   </header>
 
   <!-- ── Session ── -->
@@ -261,11 +302,11 @@
   <!-- ── Hero: Live Interview ── -->
   <div class="card interview-hero hidden" id="interview-card">
     <h2>Live Interview with Sam</h2>
-    <p style="font-size:0.92rem;color:#555;margin-bottom:14px">
-      Speak directly with our AI YC partner. Sam will probe your pitch, challenge your assumptions,
-      and give honest feedback. The full evaluation pipeline runs automatically when you finish.
+    <p style="font-size:0.9rem;color:#555;margin-bottom:10px">
+      Speak directly with our AI YC partner. Upload your deck first so Sam can follow along.
     </p>
 
+    <!-- Controls row -->
     <div class="interview-controls">
       <button class="btn btn-primary" id="start-interview-btn">Start Interview</button>
       <button class="btn btn-danger hidden" id="stop-interview-btn">Stop Interview</button>
@@ -273,12 +314,50 @@
     </div>
 
     <div class="viz" id="audio-viz">Mic inactive</div>
-    <div class="transcript hidden" id="live-transcript"></div>
-  </div>
+
+    <!-- Two-column layout: left = transcript, right = slides + metrics + coaching -->
+    <div class="interview-layout">
+
+      <!-- Left: transcript -->
+      <div class="interview-left">
+        <div class="panel" style="flex:1">
+          <h3>Transcript</h3>
+          <div class="transcript" id="live-transcript">
+            <p style="color:#a0aec0;font-size:0.85rem;font-style:italic">
+              Your conversation with Sam will appear here...
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: slides, metrics, coaching -->
+      <div class="interview-right">
+
+        <!-- Slide viewer (only visible after deck upload) -->
+        <div class="panel hidden" id="slide-viewer-panel">
+          <h3>Deck Slides</h3>
+          <div id="slide-viewer-container"></div>
+        </div>
+
+        <!-- Real-time metrics -->
+        <div class="panel hidden" id="metrics-panel">
+          <h3>Live Metrics</h3>
+          <div id="metrics-container"></div>
+        </div>
+
+        <!-- Coaching tips -->
+        <div class="panel hidden" id="coaching-panel">
+          <h3>AI Coaching</h3>
+          <div id="coaching-container"></div>
+        </div>
+
+      </div>
+    </div><!-- /interview-layout -->
+  </div><!-- /interview-card -->
 
   <!-- ── Pipeline progress panel (appears after interview ends) ── -->
-  <div class="pipeline-panel hidden" id="pipeline-panel">
-    <h3>Processing your pitch</h3>
+  <div class="card hidden" id="pipeline-panel">
+    <h2>Processing your pitch</h2>
     <div class="pipeline-steps">
       <div class="pipeline-step done" data-step="step-transcript">
         <div class="step-icon">✓</div><span>Transcript captured</span>
@@ -303,7 +382,7 @@
     <!-- Deck upload -->
     <div class="path-card">
       <h3>Upload Pitch Deck</h3>
-      <p style="font-size:0.85rem;color:#718096;margin-bottom:12px">PDF or PPTX — optional enrichment</p>
+      <p style="font-size:0.85rem;color:#718096;margin-bottom:12px">PDF or PPTX — slides shown during interview</p>
       <input type="file" id="deck-file-input" accept=".pdf,.pptx" />
       <label for="deck-file-input" class="file-label">Choose File</label>
       <div id="deck-file-name" style="font-size:0.82rem;color:#718096;margin-top:8px"></div>
@@ -321,6 +400,22 @@
       <button class="btn btn-primary" id="submit-pitch-btn" style="font-size:0.88rem">Analyze Pitch</button>
       <div id="pitch-status"></div>
     </div>
+  </div>
+
+  <!-- ── Audio Deliberation ── (appears after verdict is ready) -->
+  <div class="card deliberation-live hidden" id="audio-deliberation-card">
+    <h2>Hear the VC Panel</h2>
+    <p style="font-size:0.9rem;color:#555;margin-bottom:14px">
+      Listen to Paul, Elad, and Keith debate your startup out loud. Each partner has a distinct voice.
+    </p>
+    <div id="deliberation-persona-status"></div>
+    <button class="btn btn-purple" id="start-deliberation-audio-btn">
+      Start Audio Deliberation
+    </button>
+    <button class="btn btn-danger hidden" id="stop-deliberation-audio-btn">
+      Stop
+    </button>
+    <div class="delib-transcript hidden" id="delib-live-transcript"></div>
   </div>
 
   <!-- ── Result cards (hidden until data arrives) ── -->
@@ -363,16 +458,20 @@
 </div><!-- /container -->
 
 <script type="module">
-  import { createSession, sessionId as _sid } from '/static/js/session.js';
-  import { startInterview, stopInterview } from '/static/js/interview.js';
-  import { startPipelineWatch, resetPipeline } from '/static/js/pipeline.js';
-  import { renderDeckCritique } from '/static/js/render.js';
+  import { createSession }                              from '/static/js/session.js';
+  import { startInterview, stopInterview, sendSlideChange } from '/static/js/interview.js';
+  import { startPipelineWatch, resetPipeline }          from '/static/js/pipeline.js';
+  import { renderDeckCritique }                         from '/static/js/render.js';
+  import { initSlides, resetSlides }                    from '/static/js/slides.js';
+  import { initMetrics, stopMetrics, resetMetrics, recordTranscript } from '/static/js/metrics.js';
+  import { initCoaching, showTip, resetCoaching }       from '/static/js/coaching.js';
+  import { startAudioDeliberation, stopAudioDeliberation } from '/static/js/deliberation.js';
 
-  // Re-export mutable sessionId from module scope via closure
   let sessionId = null;
+  let _deckUploaded = false;
   const API_BASE = window.location.origin;
 
-  // ── Session ────────────────────────────────────────────────────────────────
+  // ── Session ──────────────────────────────────────────────────────────────────
   document.getElementById('start-session-btn').addEventListener('click', async () => {
     try {
       sessionId = await createSession();
@@ -386,7 +485,7 @@
     }
   });
 
-  // ── Live Interview ─────────────────────────────────────────────────────────
+  // ── Live Interview ───────────────────────────────────────────────────────────
   const transcriptEl = document.getElementById('live-transcript');
   const vizEl        = document.getElementById('audio-viz');
   const statusText   = document.getElementById('interview-status-text');
@@ -396,31 +495,42 @@
   startBtn.addEventListener('click', async () => {
     if (!sessionId) { alert('Create a session first'); return; }
     resetPipeline();
+
+    // Clear transcript
     transcriptEl.innerHTML = '';
-    transcriptEl.classList.remove('hidden');
+
+    // Init live panels
+    document.getElementById('metrics-panel').classList.remove('hidden');
+    document.getElementById('coaching-panel').classList.remove('hidden');
+    initMetrics('metrics-container');
+    initCoaching('coaching-container');
 
     try {
       await startInterview(sessionId, {
         onTranscript(speaker, text) {
+          // Append transcript turn
           const turn = document.createElement('div');
           turn.className = `turn ${speaker.toLowerCase()}`;
           turn.innerHTML = `<strong>${speaker}</strong><div>${text}</div>`;
           transcriptEl.appendChild(turn);
           transcriptEl.scrollTop = transcriptEl.scrollHeight;
+
+          // Feed founder lines to metrics
+          if (speaker === 'Founder') recordTranscript(text);
         },
         onStatus(status) {
           const labels = {
-            connected:    '🟢 Live',
+            connected:    'Live',
             closed:       '',
-            error:        '🔴 Error',
-            interrupted:  '↩ Interrupted',
+            error:        'Error',
+            interrupted:  'Interrupted',
             turn_complete:'',
           };
           statusText.textContent = labels[status] ?? status;
           if (status === 'connected') {
             startBtn.classList.add('hidden');
             stopBtn.classList.remove('hidden');
-            vizEl.textContent = '🎤 Listening...';
+            vizEl.textContent = 'Listening...';
           }
         },
         onEnded() {
@@ -428,8 +538,11 @@
           stopBtn.classList.add('hidden');
           statusText.textContent = '';
           vizEl.textContent = 'Mic inactive';
-          // Kick off the pipeline watcher
+          stopMetrics();
           startPipelineWatch(sessionId);
+        },
+        onCoachingTip(tip) {
+          showTip(tip);
         },
       });
     } catch (err) {
@@ -442,9 +555,22 @@
     startBtn.classList.remove('hidden');
     stopBtn.classList.add('hidden');
     vizEl.textContent = 'Mic inactive';
+    stopMetrics();
   });
 
-  // ── Deck Upload ────────────────────────────────────────────────────────────
+  // ── Shared error helper ──────────────────────────────────────────────────────
+  async function extractErrorMessage(res) {
+    try {
+      const body = await res.json();
+      if (Array.isArray(body.detail)) return body.detail.map(e => e.msg || JSON.stringify(e)).join('; ');
+      if (body.detail) return String(body.detail);
+      return JSON.stringify(body);
+    } catch {
+      return res.statusText || `HTTP ${res.status}`;
+    }
+  }
+
+  // ── Deck Upload ──────────────────────────────────────────────────────────────
   document.getElementById('deck-file-input').addEventListener('change', (e) => {
     const f = e.target.files[0];
     if (f) {
@@ -467,22 +593,31 @@
 
     try {
       const res = await fetch(`${API_BASE}/api/upload-deck`, { method: 'POST', body: fd });
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
       const data = await res.json();
-      statusDiv.innerHTML = '<div class="status success">Deck analyzed — deliberation starting...</div>';
+      statusDiv.innerHTML = '<div class="status success">Deck analyzed — slides ready.</div>';
       renderDeckCritique(data.deck_critique);
-      // Deck upload auto-triggers deliberation on backend; start pipeline watch
+
+      // Show slide viewer and load slides
+      _deckUploaded = true;
+      document.getElementById('slide-viewer-panel').classList.remove('hidden');
+      await initSlides(sessionId, 'slide-viewer-container', (index, title, total) => {
+        sendSlideChange(index, title, total);
+      });
+
+      // Auto-kick deliberation pipeline
       startPipelineWatch(sessionId);
     } catch (err) {
       statusDiv.innerHTML = `<div class="status error">Error: ${err.message}</div>`;
     }
   });
 
-  // ── Type Pitch ─────────────────────────────────────────────────────────────
+  // ── Type Pitch ───────────────────────────────────────────────────────────────
   document.getElementById('submit-pitch-btn').addEventListener('click', async () => {
     if (!sessionId) { alert('Create a session first'); return; }
     const text = document.getElementById('pitch-text').value.trim();
     if (!text) { alert('Enter your pitch text first'); return; }
+    if (text.length < 10) { alert('Pitch text must be at least 10 characters.'); return; }
 
     const statusDiv = document.getElementById('pitch-status');
     statusDiv.innerHTML = '<div class="status info">Analyzing pitch...</div>';
@@ -493,15 +628,84 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pitch_text: text }),
       });
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) throw new Error(await extractErrorMessage(res));
       statusDiv.innerHTML = '<div class="status success">Pitch submitted — starting deliberation...</div>';
 
-      // Manually kick deliberation for typed-pitch path
       await fetch(`${API_BASE}/api/deliberate?session_id=${sessionId}`, { method: 'POST' });
       startPipelineWatch(sessionId);
     } catch (err) {
       statusDiv.innerHTML = `<div class="status error">Error: ${err.message}</div>`;
     }
+  });
+
+  // ── Audio Deliberation ───────────────────────────────────────────────────────
+  // Show the "Hear the Panel" card once the verdict is ready.
+  // pipeline.js doesn't have a hook for this, so we watch for the verdict card
+  // becoming visible via a MutationObserver.
+  const verdictCard = document.getElementById('verdict-card');
+  const audioDelibCard = document.getElementById('audio-deliberation-card');
+
+  new MutationObserver(() => {
+    if (!verdictCard.classList.contains('hidden')) {
+      audioDelibCard.classList.remove('hidden');
+    }
+  }).observe(verdictCard, { attributes: true, attributeFilter: ['class'] });
+
+  const startDelibBtn = document.getElementById('start-deliberation-audio-btn');
+  const stopDelibBtn  = document.getElementById('stop-deliberation-audio-btn');
+  const delibTranscript = document.getElementById('delib-live-transcript');
+  const delibStatus     = document.getElementById('deliberation-persona-status');
+
+  startDelibBtn.addEventListener('click', async () => {
+    if (!sessionId) return;
+    startDelibBtn.classList.add('hidden');
+    stopDelibBtn.classList.remove('hidden');
+    delibTranscript.innerHTML = '';
+    delibTranscript.classList.remove('hidden');
+    delibStatus.innerHTML = '<p style="color:#764ba2;font-size:0.88rem;font-weight:600">Connecting to panel...</p>';
+
+    await startAudioDeliberation(sessionId, {
+      onStatus(msg) {
+        delibStatus.innerHTML = `<p style="color:#764ba2;font-size:0.88rem;font-weight:600">${msg}</p>`;
+      },
+      onPersonaStart(persona, role, round, color) {
+        delibStatus.innerHTML = `
+          <div class="persona-speaking" style="background:${color}20;border:2px solid ${color}">
+            <span style="font-size:1.2rem">&#x1F3A4;</span>
+            <span style="color:${color}">${persona} (${role}) — Round ${round}</span>
+          </div>`;
+      },
+      onTranscript(persona, role, text, round, color) {
+        const turn = document.createElement('div');
+        turn.className = 'delib-turn';
+        turn.style.cssText = `background:${color}15;border-left:4px solid ${color}`;
+        turn.innerHTML = `
+          <div class="delib-turn-name" style="color:${color}">${persona} · ${role}</div>
+          <div>${text}</div>`;
+        delibTranscript.appendChild(turn);
+        delibTranscript.scrollTop = delibTranscript.scrollHeight;
+      },
+      onPersonaEnd(persona) {
+        // Clear the speaking indicator briefly
+      },
+      onComplete() {
+        delibStatus.innerHTML = '<p style="color:#38a169;font-weight:600">Panel deliberation complete.</p>';
+        startDelibBtn.classList.remove('hidden');
+        stopDelibBtn.classList.add('hidden');
+      },
+      onError(msg) {
+        delibStatus.innerHTML = `<p style="color:#e53e3e;font-size:0.88rem">Error: ${msg}</p>`;
+        startDelibBtn.classList.remove('hidden');
+        stopDelibBtn.classList.add('hidden');
+      },
+    });
+  });
+
+  stopDelibBtn.addEventListener('click', () => {
+    stopAudioDeliberation();
+    startDelibBtn.classList.remove('hidden');
+    stopDelibBtn.classList.add('hidden');
+    delibStatus.innerHTML = '';
   });
 </script>
 </body>

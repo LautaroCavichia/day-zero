@@ -3,9 +3,11 @@
  *
  * Exports:
  *   startInterview(sessionId, callbacks)
- *     callbacks: { onTranscript(speaker, text), onStatus(msg), onEnded() }
+ *     callbacks: { onTranscript(speaker, text), onStatus(msg), onEnded(),
+ *                  onCoachingTip(tip) }
  *   stopInterview()
  *   isActive()
+ *   sendSlideChange(index, title, total)   — call when founder advances a slide
  */
 
 import { startCapture, stopCapture, initPlayback, playChunk, resetPlayback } from './audio.js';
@@ -14,13 +16,16 @@ const API_BASE = window.location.origin;
 
 let _socket = null;
 let _onEnded = null;
+let _sessionId = null;
+let _coachTimer = null;
 
 export function isActive() {
   return _socket !== null && _socket.readyState === WebSocket.OPEN;
 }
 
-export async function startInterview(sessionId, { onTranscript, onStatus, onEnded }) {
+export async function startInterview(sessionId, { onTranscript, onStatus, onEnded, onCoachingTip }) {
   _onEnded = onEnded;
+  _sessionId = sessionId;
 
   // Init audio playback context first (needs user gesture)
   initPlayback();
@@ -39,6 +44,10 @@ export async function startInterview(sessionId, { onTranscript, onStatus, onEnde
 
   _socket.onopen = () => {
     onStatus('connected');
+    // Start periodic coaching tip requests (every 25 seconds)
+    if (onCoachingTip) {
+      _coachTimer = setInterval(() => _fetchCoachingTip(sessionId, onCoachingTip), 25000);
+    }
   };
 
   _socket.onmessage = async (event) => {
@@ -71,9 +80,36 @@ export function stopInterview() {
   _teardown();
 }
 
+/**
+ * Send a slide change notification to the backend (injected into Gemini Live).
+ * Call this whenever the founder navigates to a new slide.
+ */
+export function sendSlideChange(index, title, total) {
+  if (_socket && _socket.readyState === WebSocket.OPEN) {
+    _socket.send(JSON.stringify({
+      type: 'slide_change',
+      index,
+      title,
+      total,
+    }));
+  }
+}
+
+async function _fetchCoachingTip(sessionId, onCoachingTip) {
+  try {
+    const res = await fetch(`${API_BASE}/api/session/${sessionId}/coach`, { method: 'POST' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.tip) onCoachingTip(data.tip);
+  } catch (e) {
+    // Coaching tips are best-effort — don't surface errors
+  }
+}
+
 function _teardown() {
   stopCapture();
   resetPlayback();
+  if (_coachTimer) { clearInterval(_coachTimer); _coachTimer = null; }
   if (_socket) {
     _socket.onclose = null; // prevent double-fire of onEnded
     if (_socket.readyState === WebSocket.OPEN || _socket.readyState === WebSocket.CONNECTING) {
@@ -81,6 +117,7 @@ function _teardown() {
     }
     _socket = null;
   }
+  _sessionId = null;
 }
 
 function _handleTextEvent(msg, onTranscript, onStatus) {
@@ -106,3 +143,4 @@ function _handleTextEvent(msg, onTranscript, onStatus) {
       break;
   }
 }
+

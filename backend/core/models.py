@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ── Shared base ───────────────────────────────────────────────────────────
 
@@ -232,7 +232,16 @@ class SessionState(_Base):
 
 
 class PitchTextRequest(BaseModel):
-    pitch_text: str = Field(..., min_length=10, description="Raw startup pitch text.")
+    pitch_text: str = Field(..., description="Raw startup pitch text (minimum 10 characters).")
+
+    @field_validator("pitch_text")
+    @classmethod
+    def pitch_text_min_length(cls, v: str) -> str:
+        if len(v) < 10:
+            raise ValueError(
+                "Pitch text is too short — please enter at least 10 characters describing your startup."
+            )
+        return v
 
 
 class SessionResponse(BaseModel):

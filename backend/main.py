@@ -39,6 +39,7 @@ from core.errors import (  # noqa: E402
     ConfigError,
     DayZeroError,
     FileTooLargeError,
+    GeminiApiError,
     InvalidFileTypeError,
     PitchContextEmptyError,
     SessionNotFoundError,
@@ -49,6 +50,7 @@ from core.models import (  # noqa: E402
     SessionResponse,
     TaskStartedResponse,
 )
+from agents.coaching import get_coaching_tip  # noqa: E402
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
@@ -133,6 +135,34 @@ async def file_too_large_handler(request: Request, exc: FileTooLargeError):
         status_code=413,
         content=ErrorResponse(error="file_too_large", detail=exc.detail).model_dump(),
     )
+
+
+@app.exception_handler(GeminiApiError)
+async def gemini_api_error_handler(request: Request, exc: GeminiApiError):
+    logger.error("GeminiApiError: status=%s code=%s %s", exc.status_code, exc.error_code, exc)
+    # Map Gemini HTTP status codes to meaningful HTTP responses
+    if exc.status_code == 429:
+        http_status = 429
+        error_key = "rate_limit_exceeded"
+    elif exc.status_code in (401, 403):
+        http_status = 503
+        error_key = "gemini_auth_error"
+    elif exc.status_code >= 500:
+        http_status = 502
+        error_key = "gemini_server_error"
+    else:
+        http_status = 502
+        error_key = "gemini_api_error"
+
+    content = ErrorResponse(error=error_key, detail=exc.detail).model_dump()
+    if exc.retry_after is not None:
+        content["retry_after"] = exc.retry_after
+
+    headers = {}
+    if exc.retry_after is not None:
+        headers["Retry-After"] = str(int(exc.retry_after))
+
+    return JSONResponse(status_code=http_status, content=content, headers=headers)
 
 
 @app.exception_handler(AgentError)
@@ -337,7 +367,97 @@ async def _run_deliberation_bg(session_id: str) -> None:
             pass
 
 
-# ── Live Interview WebSocket ────────────────────────────────────────────────
+# ── Slides ──────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/session/{session_id}/slides", tags=["Analysis"])
+async def get_slides(session_id: str):
+    """
+    Return all slide images (base64 PNG) for the uploaded deck.
+    Available after POST /api/upload-deck completes.
+    """
+    state = await ss.default_store.require_state(session_id)
+    slides = state.get("slide_images", [])
+    return {"slides": slides, "count": len(slides)}
+
+
+@app.get("/api/session/{session_id}/slides/{index}", tags=["Analysis"])
+async def get_slide(session_id: str, index: int):
+    """
+    Return a single slide image (base64 PNG) by 0-based index.
+    Returns 404 if index is out of range.
+    """
+    state = await ss.default_store.require_state(session_id)
+    slides = state.get("slide_images", [])
+    if index < 0 or index >= len(slides):
+        raise HTTPException(
+            status_code=404, detail=f"Slide {index} not found (count={len(slides)})"
+        )
+    return {"index": index, "image": slides[index], "total": len(slides)}
+
+
+# ── Real-time coaching ───────────────────────────────────────────────────────
+
+
+@app.post("/api/session/{session_id}/coach", tags=["Analysis"])
+async def request_coaching(session_id: str):
+    """
+    Request a real-time coaching tip based on the transcript so far.
+    Called periodically by the frontend during a live interview.
+    """
+    _require_api_key()
+    state = await ss.default_store.require_state(session_id)
+    transcript = state.get("live_transcript", [])
+    if not transcript:
+        return {"tip": None, "reason": "no_transcript"}
+
+    tip = await get_coaching_tip(transcript)
+    return {"tip": tip}
+
+
+# ── Audio Deliberation WebSocket ─────────────────────────────────────────────
+
+
+@app.websocket("/ws/deliberation/{session_id}")
+async def audio_deliberation_ws(websocket: WebSocket, session_id: str):
+    """
+    Streams the VC deliberation panel as audio.
+
+    Each persona (Paul/Elad/Keith + Synthesizer) speaks their analysis via
+    Gemini Live. The frontend plays audio and shows who is speaking.
+
+    Text events:
+      { "type": "persona_start",  "persona": "Paul",  "role": "Skeptic" }
+      { "type": "transcript",     "persona": "Paul",  "text": "..." }
+      { "type": "persona_end",    "persona": "Paul" }
+      { "type": "deliberation_complete" }
+      { "type": "error",          "message": "..." }
+    Binary frames: PCM 24kHz audio for the current persona.
+    """
+    import json as _json
+    from agents.audio_deliberation import run_audio_deliberation
+
+    if not settings.api_key_set:
+        await websocket.accept()
+        await websocket.send_text(
+            _json.dumps({"type": "error", "message": "GOOGLE_API_KEY not set"})
+        )
+        await websocket.close()
+        return
+
+    state = await ss.default_store.get_state(session_id)
+    if state is None:
+        await websocket.accept()
+        await websocket.send_text(
+            _json.dumps({"type": "error", "message": f"Session {session_id} not found"})
+        )
+        await websocket.close()
+        return
+
+    await run_audio_deliberation(websocket, session_id)
+
+
+# ── Live Interview WebSocket ─────────────────────────────────────────────────
 
 
 @app.websocket("/ws/live/{session_id}")

@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from config import settings
 from google import genai
 from google.genai import types
 
-from core.errors import ConfigError, GeminiResponseError
+from core.errors import ConfigError, GeminiApiError, GeminiResponseError
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,74 @@ def get_client(api_key: str | None = None) -> genai.Client:
     return genai.Client(api_key=key)
 
 
+# ── Gemini API error translation ───────────────────────────────────────────
+
+
+def _translate_gemini_error(exc: Exception) -> GeminiApiError:
+    """
+    Convert a ``google.genai.errors.ClientError`` or ``ServerError`` into a
+    ``GeminiApiError`` with a human-readable message and structured metadata.
+
+    Extracts:
+    - HTTP status code
+    - API error code string (e.g. "RESOURCE_EXHAUSTED")
+    - ``retryDelay`` from the RetryInfo detail when present
+    """
+    # google-genai errors carry status_code as an attribute
+    status_code: int = getattr(exc, "status_code", 0) or 0
+    error_code: str = ""
+    retry_after: float | None = None
+    message: str = str(exc)
+
+    # Try to extract structured info from the response_json attribute
+    response_json: dict = getattr(exc, "response_json", None) or {}
+    error_body: dict = response_json.get("error", {})
+    if error_body:
+        error_code = error_body.get("status", "")
+        api_message: str = error_body.get("message", "")
+
+        # Parse retryDelay from RetryInfo detail (e.g. "44s" or "44.112s")
+        for detail in error_body.get("details", []):
+            if detail.get("@type", "").endswith("RetryInfo"):
+                delay_str: str = detail.get("retryDelay", "")
+                m = re.match(r"([\d.]+)", delay_str)
+                if m:
+                    retry_after = float(m.group(1))
+                break
+
+        # Build a concise human-readable message
+        if status_code == 429:
+            retry_hint = f" Retry after {retry_after:.0f}s." if retry_after else ""
+            message = (
+                f"Gemini API rate limit exceeded (quota exhausted).{retry_hint} "
+                "Check your plan at https://ai.dev/rate-limit."
+            )
+        elif status_code == 401 or status_code == 403:
+            message = (
+                "Gemini API authentication failed. "
+                "Verify your GOOGLE_API_KEY is valid and has the required permissions."
+            )
+        elif status_code >= 500:
+            message = f"Gemini API server error ({status_code}). Please try again shortly."
+        elif api_message:
+            message = f"Gemini API error ({error_code or status_code}): {api_message}"
+
+    logger.error(
+        "Gemini API error: status=%s code=%s retry_after=%s original=%s",
+        status_code,
+        error_code,
+        retry_after,
+        exc,
+    )
+
+    return GeminiApiError(
+        message,
+        status_code=status_code,
+        error_code=error_code,
+        retry_after=retry_after,
+    )
+
+
 # ── JSON response parsing ──────────────────────────────────────────────────
 
 
@@ -55,10 +124,8 @@ def parse_json_response(raw: str) -> Any:
     text = raw.strip()
 
     # Strip outer XML-style wrapper tags (e.g. <response>...</response>)
-    import re as _re
-
-    text = _re.sub(r"^<[^>]+>\s*", "", text)
-    text = _re.sub(r"\s*</[^>]+>$", "", text)
+    text = re.sub(r"^<[^>]+>\s*", "", text)
+    text = re.sub(r"\s*</[^>]+>$", "", text)
     text = text.strip()
 
     # Strip optional language tag + closing fence
@@ -96,6 +163,7 @@ async def generate_json(
 
     This is the standard path used by all non-Live agents.
     Raises ``GeminiResponseError`` on parse failure.
+    Raises ``GeminiApiError`` on API-level errors (rate limits, auth, server errors).
     """
     config_kwargs: dict[str, Any] = {
         "response_mime_type": "application/json",
@@ -105,16 +173,19 @@ async def generate_json(
     if temperature is not None:
         config_kwargs["temperature"] = temperature
 
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=[
-            types.Content(
-                role="user",
-                parts=[types.Part(text=user_content)],
-            )
-        ],
-        config=types.GenerateContentConfig(**config_kwargs),
-    )
+    try:
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part(text=user_content)],
+                )
+            ],
+            config=types.GenerateContentConfig(**config_kwargs),
+        )
+    except (genai.errors.ClientError, genai.errors.ServerError) as exc:
+        raise _translate_gemini_error(exc) from exc
 
     raw = response.text or ""
     return parse_json_response(raw)
@@ -134,6 +205,8 @@ async def generate_json_with_search(
     NOTE: ``response_mime_type="application/json"`` is intentionally omitted
     here — the Gemini API rejects that combination with the Google Search tool.
     We rely on ``parse_json_response`` (markdown fence stripper) instead.
+
+    Raises ``GeminiApiError`` on API-level errors (rate limits, auth, server errors).
     """
     config_kwargs: dict[str, Any] = {
         "tools": [types.Tool(google_search=types.GoogleSearch())],
@@ -142,16 +215,19 @@ async def generate_json_with_search(
     if system_instruction:
         config_kwargs["system_instruction"] = system_instruction
 
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=[
-            types.Content(
-                role="user",
-                parts=[types.Part(text=user_content)],
-            )
-        ],
-        config=types.GenerateContentConfig(**config_kwargs),
-    )
+    try:
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part(text=user_content)],
+                )
+            ],
+            config=types.GenerateContentConfig(**config_kwargs),
+        )
+    except (genai.errors.ClientError, genai.errors.ServerError) as exc:
+        raise _translate_gemini_error(exc) from exc
 
     raw = response.text or ""
     if not raw.strip():
@@ -183,14 +259,19 @@ async def generate_json_multimodal(
     """
     Call ``generate_content`` with arbitrary multimodal *parts* and parse
     the JSON response.  Used by the DeckAnalystAgent.
+
+    Raises ``GeminiApiError`` on API-level errors (rate limits, auth, server errors).
     """
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=[types.Content(role="user", parts=parts)],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-        ),
-    )
+    try:
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=[types.Content(role="user", parts=parts)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+    except (genai.errors.ClientError, genai.errors.ServerError) as exc:
+        raise _translate_gemini_error(exc) from exc
 
     raw = response.text or ""
     return parse_json_response(raw)

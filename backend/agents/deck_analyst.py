@@ -61,6 +61,9 @@ async def analyze_deck(
     """
     Analyze a pitch deck file and write results to session state.
 
+    Also stores slide images (base64 PNG) in session state under 'slide_images'
+    so the live interview can send each slide to Gemini as the founder presents.
+
     Args:
         session_id: ADK session ID.
         file_bytes: Raw bytes of PDF or PPTX file.
@@ -71,6 +74,8 @@ async def analyze_deck(
     Returns:
         Validated ``DeckCritique`` Pydantic model.
     """
+    import base64
+
     _store = store or ss.default_store
     logger.info("DeckAnalyst: analyzing %s for session=%s", filename, session_id)
 
@@ -82,11 +87,13 @@ async def analyze_deck(
 
     client = get_client(api_key)
 
+    # Convert all images to PNG bytes first so we can reuse them
+    slide_png_bytes: list[bytes] = [_pil_to_bytes(img) for img in images]
+
     parts: list[types.Part] = [types.Part(text=DECK_ANALYST_PROMPT)]
-    for i, img in enumerate(images):
-        img_bytes = _pil_to_bytes(img)
+    for i, img_bytes in enumerate(slide_png_bytes):
         parts.append(types.Part(inline_data=types.Blob(data=img_bytes, mime_type="image/png")))
-        logger.debug("DeckAnalyst: added slide %d/%d", i + 1, len(images))
+        logger.debug("DeckAnalyst: added slide %d/%d", i + 1, len(slide_png_bytes))
 
     raw = await generate_json_multimodal(
         client=client,
@@ -99,15 +106,25 @@ async def analyze_deck(
 
     critique = DeckCritique.model_validate(raw)
 
+    # Store slide images as base64 strings so the live interview can use them.
+    # We cap at 150 DPI PNG which is typically 50-200 KB/slide — acceptable for
+    # session state given the hackathon's in-memory store.
+    slide_images_b64 = [base64.b64encode(b).decode("utf-8") for b in slide_png_bytes]
+
     await _store.update(
         session_id,
         {
             "deck_critique": critique.model_dump(),
             "deck_analysis_done": True,
+            "slide_images": slide_images_b64,  # list of base64 PNG strings
         },
     )
 
-    logger.info("DeckAnalyst: analysis complete for session=%s", session_id)
+    logger.info(
+        "DeckAnalyst: analysis complete for session=%s, stored %d slide images",
+        session_id,
+        len(slide_images_b64),
+    )
     return critique
 
 
