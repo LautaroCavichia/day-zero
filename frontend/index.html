@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DayZero — YC-Style Pitch Validation</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    header h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      font-size: 1.2rem;
+      opacity: 0.9;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      padding: 30px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 15px;
+      color: #667eea;
+    }
+
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      background: #764ba2;
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: #653a8a;
+    }
+
+    button.danger {
+      background: #e53e3e;
+    }
+
+    button.danger:hover:not(:disabled) {
+      background: #c53030;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .tab-button {
+      background: transparent;
+      color: #667eea;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .tab-button.active {
+      background: #667eea;
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 150px;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 1rem;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 15px;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .file-label {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .file-label:hover {
+      background: #5568d3;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-weight: 500;
+    }
+
+    .status.info {
+      background: #bee3f8;
+      color: #2c5282;
+    }
+
+    .status.success {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .status.error {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+
+    .status.warning {
+      background: #feebc8;
+      color: #7c2d12;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .transcript {
+      max-height: 400px;
+      overflow-y: auto;
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+    }
+
+    .transcript-turn {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    .transcript-turn.founder {
+      background: #e6fffa;
+      border-left: 4px solid #319795;
+    }
+
+    .transcript-turn.sam {
+      background: #fef5e7;
+      border-left: 4px solid #dd6b20;
+    }
+
+    .transcript-turn strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .debate-panel {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+    }
+
+    .debate-round {
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 20px;
+    }
+
+    .debate-round:last-child {
+      border-bottom: none;
+    }
+
+    .debate-round h4 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+
+    .persona-response {
+      margin-bottom: 15px;
+      padding: 12px;
+      border-radius: 6px;
+    }
+
+    .persona-response.skeptic {
+      background: #fff5f5;
+      border-left: 4px solid #e53e3e;
+    }
+
+    .persona-response.optimist {
+      background: #f0fff4;
+      border-left: 4px solid #38a169;
+    }
+
+    .persona-response.operator {
+      background: #ebf4ff;
+      border-left: 4px solid #3182ce;
+    }
+
+    .persona-response .name {
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .persona-response .score {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-left: 8px;
+    }
+
+    .verdict-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 12px;
+      margin-top: 20px;
+    }
+
+    .verdict-badge {
+      display: inline-block;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 15px;
+    }
+
+    .verdict-badge.pass {
+      background: #38a169;
+    }
+
+    .verdict-badge.soft-pass {
+      background: #dd6b20;
+    }
+
+    .verdict-badge.no {
+      background: #e53e3e;
+    }
+
+    .score-gauge {
+      margin: 20px 0;
+    }
+
+    .score-bar {
+      background: rgba(255,255,255,0.3);
+      height: 30px;
+      border-radius: 15px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .score-fill {
+      background: white;
+      height: 100%;
+      border-radius: 15px;
+      transition: width 0.8s ease;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 15px;
+      font-weight: 700;
+    }
+
+    .strengths-risks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .strengths-risks h4 {
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+    }
+
+    .strengths-risks ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .strengths-risks li {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .strengths-risks li:last-child {
+      border-bottom: none;
+    }
+
+    .progress-bar {
+      background: #e2e8f0;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      background: #667eea;
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .market-intel-grid {
+      display: grid;
+      gap: 20px;
+      margin-top: 15px;
+    }
+
+    .intel-section {
+      background: #f7fafc;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .intel-section h4 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+
+    .competitor-card {
+      background: white;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      border-left: 4px solid #667eea;
+    }
+
+    .competitor-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .confidence-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+
+    .confidence-high {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .confidence-medium {
+      background: #feebc8;
+      color: #7c2d12;
+    }
+
+    .confidence-low {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+
+    .audio-controls {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      margin-top: 15px;
+    }
+
+    .audio-visualizer {
+      width: 100%;
+      height: 60px;
+      background: #f7fafc;
+      border-radius: 8px;
+      margin-top: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #a0aec0;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+      header h1 {
+        font-size: 2rem;
+      }
+
+      .strengths-risks {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>DayZero</h1>
+      <p>AI-powered YC-style pitch validation</p>
+    </header>
+
+    <!-- Session Init -->
+    <div class="card" id="session-card">
+      <h2>Session</h2>
+      <div id="session-init">
+        <button id="start-session-btn">Start New Pitch Session</button>
+      </div>
+      <div id="session-active" class="hidden">
+        <div class="status info">
+          Session active: <strong id="session-id-display"></strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Input Tabs -->
+    <div class="card hidden" id="input-card">
+      <h2>Pitch Input</h2>
+      <div class="tabs">
+        <button class="tab-button active" data-tab="live">🎤 Live Interview</button>
+        <button class="tab-button" data-tab="deck">📄 Upload Deck</button>
+        <button class="tab-button" data-tab="pitch">💬 Type Pitch</button>
+      </div>
+
+      <!-- Tab 1: Live Interview -->
+      <div class="tab-content active" id="tab-live">
+        <p style="margin-bottom: 15px;">Click Start to begin a live YC-style interview with Sam, our AI partner. Speak naturally — interruptions are supported.</p>
+        <div class="audio-controls">
+          <button id="start-interview-btn">Start Interview</button>
+          <button id="stop-interview-btn" class="danger hidden">Stop Interview</button>
+          <span id="interview-status"></span>
+        </div>
+        <div class="audio-visualizer" id="audio-viz">Mic inactive</div>
+        <div class="transcript" id="live-transcript"></div>
+      </div>
+
+      <!-- Tab 2: Upload Deck -->
+      <div class="tab-content" id="tab-deck">
+        <p style="margin-bottom: 15px;">Upload your pitch deck (PDF or PPTX). We'll analyze narrative flow, visual clarity, and give slide-by-slide feedback.</p>
+        <div class="file-input-wrapper">
+          <input type="file" id="deck-file-input" accept=".pdf,.pptx" />
+          <label for="deck-file-input" class="file-label">Choose File</label>
+        </div>
+        <div id="deck-file-name" style="margin-top: 10px; color: #718096;"></div>
+        <button id="upload-deck-btn" class="hidden" style="margin-top: 15px;">Analyze Deck</button>
+        <div id="deck-status"></div>
+        <div id="deck-critique" class="hidden" style="margin-top: 20px;"></div>
+      </div>
+
+      <!-- Tab 3: Type Pitch -->
+      <div class="tab-content" id="tab-pitch">
+        <p style="margin-bottom: 15px;">Type your pitch summary below. Include problem, solution, target customer, traction, team, and ask.</p>
+        <textarea id="pitch-text" placeholder="Example: We're building an AI-powered code review tool for enterprise dev teams. The problem is that manual code reviews slow down shipping velocity..."></textarea>
+        <button id="submit-pitch-btn" style="margin-top: 15px;">Analyze Pitch</button>
+        <div id="pitch-status"></div>
+      </div>
+    </div>
+
+    <!-- Market Intelligence Panel -->
+    <div class="card hidden" id="market-intel-card">
+      <h2>Market Intelligence</h2>
+      <button id="trigger-market-btn">Run Market Research</button>
+      <div id="market-intel-content"></div>
+    </div>
+
+    <!-- Deliberation Panel -->
+    <div class="card hidden" id="deliberation-card">
+      <h2>VC Deliberation Panel</h2>
+      <button id="trigger-deliberation-btn">Start Deliberation</button>
+      <div id="deliberation-content" class="debate-panel"></div>
+    </div>
+
+    <!-- Final Verdict -->
+    <div class="card hidden" id="verdict-card-container">
+      <div id="verdict-content"></div>
+    </div>
+
+    <!-- Sources Panel -->
+    <div class="card hidden" id="sources-card">
+      <h2>Sources</h2>
+      <div id="sources-content"></div>
+    </div>
+  </div>
+
+  <script>
+    // ────────────────────────────────────────────────────────────────────────
+    // Global State
+    // ────────────────────────────────────────────────────────────────────────
+    let sessionId = null;
+    let liveSocket = null;
+    let audioContext = null;
+    let audioWorkletNode = null;
+    let mediaStream = null;
+    let audioPlaybackQueue = [];
+    let isPlaying = false;
+
+    const API_BASE = window.location.origin;
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Session Management
+    // ────────────────────────────────────────────────────────────────────────
+    document.getElementById('start-session-btn').addEventListener('click', async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/session`, { method: 'POST' });
+        const data = await res.json();
+        sessionId = data.session_id;
+        
+        document.getElementById('session-init').classList.add('hidden');
+        document.getElementById('session-active').classList.remove('hidden');
+        document.getElementById('session-id-display').textContent = sessionId;
+        document.getElementById('input-card').classList.remove('hidden');
+        
+        console.log('Session created:', sessionId);
+      } catch (err) {
+        alert('Failed to create session: ' + err.message);
+      }
+    });
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Tab Navigation
+    // ────────────────────────────────────────────────────────────────────────
+    document.querySelectorAll('.tab-button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabName = btn.getAttribute('data-tab');
+        
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        btn.classList.add('active');
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+      });
+    });
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Tab 1: Live Interview
+    // ────────────────────────────────────────────────────────────────────────
+    document.getElementById('start-interview-btn').addEventListener('click', async () => {
+      if (!sessionId) {
+        alert('Create a session first');
+        return;
+      }
+
+      try {
+        // Request mic access
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Initialize AudioContext
+        audioContext = new AudioContext({ sampleRate: 16000 });
+        
+        // Load AudioWorklet for PCM conversion
+        await loadAudioWorklet();
+        
+        // Create AudioWorklet node
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        audioWorkletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
+        source.connect(audioWorkletNode);
+        
+        // Connect WebSocket
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/live/${sessionId}`;
+        liveSocket = new WebSocket(wsUrl);
+        liveSocket.binaryType = 'arraybuffer';
+        
+        liveSocket.onopen = () => {
+          console.log('WebSocket connected');
+          document.getElementById('start-interview-btn').classList.add('hidden');
+          document.getElementById('stop-interview-btn').classList.remove('hidden');
+          document.getElementById('interview-status').textContent = '🟢 Connected';
+          document.getElementById('audio-viz').textContent = '🎤 Listening...';
+        };
+        
+        liveSocket.onmessage = async (event) => {
+          if (typeof event.data === 'string') {
+            // JSON event
+            const msg = JSON.parse(event.data);
+            handleTextEvent(msg);
+          } else {
+            // Binary audio (PCM 24kHz)
+            await playAudioChunk(event.data);
+          }
+        };
+        
+        liveSocket.onerror = (err) => {
+          console.error('WebSocket error:', err);
+          stopInterview();
+        };
+        
+        liveSocket.onclose = () => {
+          console.log('WebSocket closed');
+          stopInterview();
+        };
+        
+        // Forward audio from worklet to WebSocket
+        audioWorkletNode.port.onmessage = (event) => {
+          if (liveSocket && liveSocket.readyState === WebSocket.OPEN) {
+            liveSocket.send(event.data);
+          }
+        };
+        
+      } catch (err) {
+        alert('Failed to start interview: ' + err.message);
+        console.error(err);
+      }
+    });
+
+    document.getElementById('stop-interview-btn').addEventListener('click', () => {
+      if (liveSocket && liveSocket.readyState === WebSocket.OPEN) {
+        liveSocket.send(JSON.stringify({ type: 'end_stream' }));
+      }
+      stopInterview();
+    });
+
+    function stopInterview() {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+      if (audioWorkletNode) {
+        audioWorkletNode.disconnect();
+        audioWorkletNode = null;
+      }
+      if (liveSocket) {
+        liveSocket.close();
+        liveSocket = null;
+      }
+      
+      document.getElementById('start-interview-btn').classList.remove('hidden');
+      document.getElementById('stop-interview-btn').classList.add('hidden');
+      document.getElementById('interview-status').textContent = '';
+      document.getElementById('audio-viz').textContent = 'Mic inactive';
+    }
+
+    async function loadAudioWorklet() {
+      const workletCode = `
+        class PCMProcessor extends AudioWorkletProcessor {
+          process(inputs, outputs, parameters) {
+            const input = inputs[0];
+            if (input.length > 0) {
+              const channelData = input[0];
+              const pcm16 = new Int16Array(channelData.length);
+              for (let i = 0; i < channelData.length; i++) {
+                const s = Math.max(-1, Math.min(1, channelData[i]));
+                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+              }
+              this.port.postMessage(pcm16.buffer, [pcm16.buffer]);
+            }
+            return true;
+          }
+        }
+        registerProcessor('pcm-processor', PCMProcessor);
+      `;
+      const blob = new Blob([workletCode], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      await audioContext.audioWorklet.addModule(url);
+    }
+
+    function handleTextEvent(msg) {
+      const transcript = document.getElementById('live-transcript');
+      
+      if (msg.type === 'transcript_input') {
+        addTranscriptTurn('Founder', msg.text, transcript);
+      } else if (msg.type === 'transcript_output') {
+        addTranscriptTurn('Sam', msg.text, transcript);
+      } else if (msg.type === 'turn_complete') {
+        console.log('Turn complete');
+      } else if (msg.type === 'interrupted') {
+        console.log('Interrupted');
+      } else if (msg.type === 'error') {
+        alert('Interview error: ' + msg.message);
+        stopInterview();
+      }
+    }
+
+    function addTranscriptTurn(speaker, text, container) {
+      const turn = document.createElement('div');
+      turn.className = `transcript-turn ${speaker.toLowerCase()}`;
+      turn.innerHTML = `<strong>${speaker}</strong><div>${text}</div>`;
+      container.appendChild(turn);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function playAudioChunk(arrayBuffer) {
+      // Queue PCM24 audio for playback
+      audioPlaybackQueue.push(arrayBuffer);
+      if (!isPlaying) {
+        playNextChunk();
+      }
+    }
+
+    async function playNextChunk() {
+      if (audioPlaybackQueue.length === 0) {
+        isPlaying = false;
+        return;
+      }
+      
+      isPlaying = true;
+      const chunk = audioPlaybackQueue.shift();
+      
+      // Create AudioContext for playback if not exists
+      if (!audioContext || audioContext.sampleRate !== 24000) {
+        const playbackContext = new AudioContext({ sampleRate: 24000 });
+        
+        // Convert Int16 PCM to Float32
+        const pcm16 = new Int16Array(chunk);
+        const float32 = new Float32Array(pcm16.length);
+        for (let i = 0; i < pcm16.length; i++) {
+          float32[i] = pcm16[i] / (pcm16[i] < 0 ? 0x8000 : 0x7FFF);
+        }
+        
+        const audioBuffer = playbackContext.createBuffer(1, float32.length, 24000);
+        audioBuffer.getChannelData(0).set(float32);
+        
+        const source = playbackContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(playbackContext.destination);
+        source.onended = () => playNextChunk();
+        source.start();
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Tab 2: Upload Deck
+    // ────────────────────────────────────────────────────────────────────────
+    document.getElementById('deck-file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        document.getElementById('deck-file-name').textContent = `Selected: ${file.name}`;
+        document.getElementById('upload-deck-btn').classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('upload-deck-btn').addEventListener('click', async () => {
+      if (!sessionId) {
+        alert('Create a session first');
+        return;
+      }
+
+      const fileInput = document.getElementById('deck-file-input');
+      const file = fileInput.files[0];
+      if (!file) {
+        alert('Select a file first');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('session_id', sessionId);
+      formData.append('file', file);
+
+      const statusDiv = document.getElementById('deck-status');
+      statusDiv.innerHTML = '<div class="status info">Uploading and analyzing deck...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/upload-deck`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) {
+          throw new Error(`Upload failed: ${res.statusText}`);
+        }
+
+        const data = await res.json();
+        statusDiv.innerHTML = '<div class="status success">Deck analysis complete!</div>';
+        
+        renderDeckCritique(data.deck_critique);
+        
+        // Show market intel card
+        document.getElementById('market-intel-card').classList.remove('hidden');
+      } catch (err) {
+        statusDiv.innerHTML = `<div class="status error">Error: ${err.message}</div>`;
+      }
+    });
+
+    function renderDeckCritique(critique) {
+      const container = document.getElementById('deck-critique');
+      container.classList.remove('hidden');
+      
+      let html = `
+        <h3 style="color: #667eea; margin-bottom: 15px;">Deck Analysis</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+          <div class="status info">
+            <strong>Narrative Arc:</strong> ${critique.narrative_arc_score}/10
+          </div>
+          <div class="status info">
+            <strong>Visual Clarity:</strong> ${critique.visual_clarity_score}/10
+          </div>
+        </div>
+      `;
+      
+      if (critique.overall_summary) {
+        html += `<p style="margin-bottom: 15px;"><strong>Summary:</strong> ${critique.overall_summary}</p>`;
+      }
+      
+      if (critique.top_issues && critique.top_issues.length > 0) {
+        html += '<h4 style="color: #e53e3e; margin: 15px 0 10px;">Top Issues</h4><ul>';
+        critique.top_issues.forEach(issue => {
+          html += `<li style="margin-bottom: 8px;">${issue}</li>`;
+        });
+        html += '</ul>';
+      }
+      
+      if (critique.strengths && critique.strengths.length > 0) {
+        html += '<h4 style="color: #38a169; margin: 15px 0 10px;">Strengths</h4><ul>';
+        critique.strengths.forEach(strength => {
+          html += `<li style="margin-bottom: 8px;">${strength}</li>`;
+        });
+        html += '</ul>';
+      }
+      
+      if (critique.missing_slides && critique.missing_slides.length > 0) {
+        html += '<h4 style="color: #dd6b20; margin: 15px 0 10px;">Missing Slides</h4><ul>';
+        critique.missing_slides.forEach(slide => {
+          html += `<li style="margin-bottom: 8px;">${slide}</li>`;
+        });
+        html += '</ul>';
+      }
+      
+      container.innerHTML = html;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Tab 3: Type Pitch
+    // ────────────────────────────────────────────────────────────────────────
+    document.getElementById('submit-pitch-btn').addEventListener('click', async () => {
+      if (!sessionId) {
+        alert('Create a session first');
+        return;
+      }
+
+      const pitchText = document.getElementById('pitch-text').value.trim();
+      if (!pitchText) {
+        alert('Enter your pitch text first');
+        return;
+      }
+
+      const statusDiv = document.getElementById('pitch-status');
+      statusDiv.innerHTML = '<div class="status info">Analyzing pitch...</div>';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/pitch?session_id=${sessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pitch_text: pitchText })
+        });
+
+        if (!res.ok) {
+          throw new Error(`Analysis failed: ${res.statusText}`);
+        }
+
+        const data = await res.json();
+        statusDiv.innerHTML = '<div class="status success">Pitch analysis complete!</div>';
+        
+        // Show market intel card
+        document.getElementById('market-intel-card').classList.remove('hidden');
+      } catch (err) {
+        statusDiv.innerHTML = `<div class="status error">Error: ${err.message}</div>`;
+      }
+    });
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Market Intelligence
+    // ────────────────────────────────────────────────────────────────────────
+    document.getElementById('trigger-market-btn').addEventListener('click', async () => {
+      if (!sessionId) {
+        alert('Create a session first');
+        return;
+      }
+
+      const btn = document.getElementById('trigger-market-btn');
+      btn.disabled = true;
+      btn.textContent = 'Researching market...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/validate-market?session_id=${sessionId}`, {
+          method: 'POST'
+        });
+
+        if (!res.ok) {
+          throw new Error(`Market validation failed: ${res.statusText}`);
+        }
+
+        // Poll for results
+        await pollForMarketIntel();
+        
+        btn.textContent = 'Market Research Complete';
+        
+        // Show deliberation card
+        document.getElementById('deliberation-card').classList.remove('hidden');
+      } catch (err) {
+        alert('Market research error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Run Market Research';
+      }
+    });
+
+    async function pollForMarketIntel() {
+      const maxAttempts = 20;
+      let attempts = 0;
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const res = await fetch(`${API_BASE}/api/session/${sessionId}`);
+        const state = await res.json();
+        
+        if (state.market_intel) {
+          renderMarketIntel(state.market_intel);
+          return;
+        }
+        
+        attempts++;
+      }
+      
+      throw new Error('Market intelligence timeout');
+    }
+
+    function renderMarketIntel(intel) {
+      const container = document.getElementById('market-intel-content');
+      let html = '<div class="market-intel-grid">';
+      
+      // Competitors
+      if (intel.competitors && intel.competitors.length > 0) {
+        html += '<div class="intel-section"><h4>Competitors</h4>';
+        intel.competitors.forEach(comp => {
+          const confBadge = getConfidenceBadge(comp.confidence);
+          html += `
+            <div class="competitor-card">
+              <strong>${comp.name}</strong> ${confBadge}
+              <p style="margin: 5px 0; font-size: 0.9rem;">${comp.description}</p>
+              <p style="font-size: 0.85rem; color: #718096;">Funding: ${comp.funding}</p>
+              ${comp.source_url ? `<a href="${comp.source_url}" target="_blank" style="font-size: 0.8rem; color: #667eea;">Source</a>` : ''}
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+      
+      // Market Size
+      if (intel.market_size) {
+        const ms = intel.market_size;
+        const confBadge = getConfidenceBadge(ms.confidence);
+        html += `
+          <div class="intel-section">
+            <h4>Market Size ${confBadge}</h4>
+            <p><strong>TAM:</strong> ${ms.tam || 'Unknown'}</p>
+            <p><strong>SAM:</strong> ${ms.sam || 'Unknown'}</p>
+            <p><strong>SOM:</strong> ${ms.som || 'Unknown'}</p>
+            ${ms.analyst_note ? `<p style="font-size: 0.9rem; margin-top: 10px; color: #718096;">${ms.analyst_note}</p>` : ''}
+            ${ms.source_url ? `<a href="${ms.source_url}" target="_blank" style="font-size: 0.8rem; color: #667eea;">Source</a>` : ''}
+          </div>
+        `;
+      }
+      
+      // Why Now
+      if (intel.why_now) {
+        const wn = intel.why_now;
+        html += '<div class="intel-section"><h4>Why Now</h4>';
+        if (wn.tailwinds && wn.tailwinds.length > 0) {
+          html += '<p style="margin-bottom: 8px;"><strong style="color: #38a169;">Tailwinds:</strong></p><ul>';
+          wn.tailwinds.forEach(t => html += `<li style="margin-bottom: 5px;">${t}</li>`);
+          html += '</ul>';
+        }
+        if (wn.headwinds && wn.headwinds.length > 0) {
+          html += '<p style="margin: 10px 0 8px;"><strong style="color: #e53e3e;">Headwinds:</strong></p><ul>';
+          wn.headwinds.forEach(h => html += `<li style="margin-bottom: 5px;">${h}</li>`);
+          html += '</ul>';
+        }
+        html += '</div>';
+      }
+      
+      // Pivot Suggestions
+      if (intel.pivot_suggestions && intel.pivot_suggestions.length > 0) {
+        html += '<div class="intel-section"><h4>Pivot Suggestions</h4>';
+        intel.pivot_suggestions.forEach(pivot => {
+          const confBadge = getConfidenceBadge(pivot.confidence);
+          html += `
+            <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+              <p><strong>${pivot.suggestion}</strong> ${confBadge}</p>
+              <p style="font-size: 0.9rem; margin: 5px 0;">${pivot.rationale}</p>
+              <p style="font-size: 0.85rem; color: #718096;">Precedent: ${pivot.precedent_company}</p>
+              ${pivot.source_url ? `<a href="${pivot.source_url}" target="_blank" style="font-size: 0.8rem; color: #667eea;">Source</a>` : ''}
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+      
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function getConfidenceBadge(confidence) {
+      if (confidence >= 0.7) {
+        return '<span class="confidence-badge confidence-high">High Confidence</span>';
+      } else if (confidence >= 0.4) {
+        return '<span class="confidence-badge confidence-medium">Medium Confidence</span>';
+      } else {
+        return '<span class="confidence-badge confidence-low">Low Confidence</span>';
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Deliberation Panel
+    // ────────────────────────────────────────────────────────────────────────
+    document.getElementById('trigger-deliberation-btn').addEventListener('click', async () => {
+      if (!sessionId) {
+        alert('Create a session first');
+        return;
+      }
+
+      const btn = document.getElementById('trigger-deliberation-btn');
+      btn.disabled = true;
+      btn.textContent = 'Running deliberation...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/deliberate?session_id=${sessionId}`, {
+          method: 'POST'
+        });
+
+        if (!res.ok) {
+          throw new Error(`Deliberation failed: ${res.statusText}`);
+        }
+
+        // Poll for results
+        await pollForDeliberation();
+        
+        btn.textContent = 'Deliberation Complete';
+        
+        // Show verdict card
+        document.getElementById('verdict-card-container').classList.remove('hidden');
+        document.getElementById('sources-card').classList.remove('hidden');
+      } catch (err) {
+        alert('Deliberation error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Start Deliberation';
+      }
+    });
+
+    async function pollForDeliberation() {
+      const maxAttempts = 30;
+      let attempts = 0;
+      const container = document.getElementById('deliberation-content');
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const res = await fetch(`${API_BASE}/api/session/${sessionId}/debate`);
+        const data = await res.json();
+        
+        if (data.debate_rounds && data.debate_rounds.length > 0) {
+          renderDebateRounds(data.debate_rounds, container);
+        }
+        
+        // Check for final verdict
+        const verdictRes = await fetch(`${API_BASE}/api/session/${sessionId}/verdict`);
+        if (verdictRes.ok && verdictRes.status !== 202) {
+          const verdict = await verdictRes.json();
+          renderVerdict(verdict);
+          
+          // Fetch sources
+          const sourcesRes = await fetch(`${API_BASE}/api/session/${sessionId}/sources`);
+          const sourcesData = await sourcesRes.json();
+          renderSources(sourcesData.sources);
+          
+          return;
+        }
+        
+        attempts++;
+      }
+      
+      throw new Error('Deliberation timeout');
+    }
+
+    function renderDebateRounds(rounds, container) {
+      let html = '';
+      
+      rounds.forEach(round => {
+        html += `<div class="debate-round">`;
+        html += `<h4>Round ${round.round} of 3</h4>`;
+        
+        // Skeptic
+        if (round.skeptic) {
+          html += `
+            <div class="persona-response skeptic">
+              <div class="name">
+                Paul (The Skeptic)
+                <span class="score">${round.skeptic.score}/10</span>
+              </div>
+              <p>${round.skeptic.dialogue}</p>
+            </div>
+          `;
+        }
+        
+        // Optimist
+        if (round.optimist) {
+          html += `
+            <div class="persona-response optimist">
+              <div class="name">
+                Elad (The Optimist)
+                <span class="score">${round.optimist.score}/10</span>
+              </div>
+              <p>${round.optimist.dialogue}</p>
+            </div>
+          `;
+        }
+        
+        // Operator
+        if (round.operator) {
+          html += `
+            <div class="persona-response operator">
+              <div class="name">
+                Keith (The Operator)
+                <span class="score">${round.operator.score}/10</span>
+              </div>
+              <p>${round.operator.dialogue}</p>
+            </div>
+          `;
+        }
+        
+        html += `</div>`;
+      });
+      
+      container.innerHTML = html;
+    }
+
+    function renderVerdict(verdict) {
+      const container = document.getElementById('verdict-content');
+      
+      const decision = verdict.decision || 'NO';
+      const score = verdict.weighted_score || 0;
+      const badgeClass = decision.toLowerCase().replace(' ', '-');
+      
+      let html = `
+        <div class="verdict-card">
+          <div class="verdict-badge ${badgeClass}">${decision}</div>
+          <h3 style="margin-bottom: 10px;">Investment Decision</h3>
+          
+          <div class="score-gauge">
+            <div class="score-bar">
+              <div class="score-fill" style="width: ${score}%">${score}/100</div>
+            </div>
+          </div>
+      `;
+      
+      if (verdict.investment_thesis) {
+        html += `<p style="margin: 20px 0; font-size: 1.1rem; line-height: 1.6;">${verdict.investment_thesis}</p>`;
+      }
+      
+      html += `<div class="strengths-risks">`;
+      
+      // Strengths
+      if (verdict.strengths && verdict.strengths.length > 0) {
+        html += '<div><h4>Strengths</h4><ul>';
+        verdict.strengths.forEach(s => html += `<li>${s}</li>`);
+        html += '</ul></div>';
+      }
+      
+      // Risks
+      if (verdict.risks && verdict.risks.length > 0) {
+        html += '<div><h4>Risks</h4><ul>';
+        verdict.risks.forEach(r => html += `<li>${r}</li>`);
+        html += '</ul></div>';
+      }
+      
+      html += '</div>';
+      
+      // Next Steps
+      if (verdict.next_steps && verdict.next_steps.length > 0) {
+        html += '<div style="margin-top: 20px;"><h4>Next Steps</h4><ul>';
+        verdict.next_steps.forEach(step => html += `<li style="padding: 8px 0;">${step}</li>`);
+        html += '</ul></div>';
+      }
+      
+      // Recommended Pivot
+      if (verdict.recommended_pivot) {
+        html += `
+          <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.2); border-radius: 8px;">
+            <h4 style="margin-bottom: 10px;">Recommended Pivot</h4>
+            <p>${verdict.recommended_pivot}</p>
+          </div>
+        `;
+      }
+      
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function renderSources(sources) {
+      const container = document.getElementById('sources-content');
+      
+      if (!sources || sources.length === 0) {
+        container.innerHTML = '<p style="color: #718096;">No sources available.</p>';
+        return;
+      }
+      
+      let html = '<ul style="list-style: none; padding: 0;">';
+      sources.forEach((src, idx) => {
+        const confBadge = getConfidenceBadge(src.confidence || 0);
+        html += `
+          <li style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;">
+            <p style="margin-bottom: 5px;"><strong>${src.claim}</strong> ${confBadge}</p>
+            ${src.url ? `<a href="${src.url}" target="_blank" style="color: #667eea; font-size: 0.9rem;">${src.url}</a>` : ''}
+            ${src.date ? `<p style="font-size: 0.85rem; color: #718096; margin-top: 5px;">Date: ${src.date}</p>` : ''}
+          </li>
+        `;
+      });
+      html += '</ul>';
+      
+      container.innerHTML = html;
+    }
+  </script>
+</body>
+</html>
