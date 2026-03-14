@@ -45,7 +45,7 @@ class GoogleProvider(LLMProvider):
     ) -> Any:
         # Lazy import keeps the import resolution inside core.gemini_client's
         # namespace, so patching ``core.gemini_client.genai.Client`` still works.
-        from core.gemini_client import generate_json as _gc_json, get_client
+        from backend.core.gemini_client import generate_json as _gc_json, get_client
 
         client = get_client(self._api_key)
         return await _gc_json(
@@ -62,7 +62,7 @@ class GoogleProvider(LLMProvider):
         user_message: str,
         system_instruction: str | None = None,
     ) -> Any:
-        from core.gemini_client import generate_json_with_search as _gc_search, get_client
+        from backend.core.gemini_client import generate_json_with_search as _gc_search, get_client
 
         client = get_client(self._api_key)
         return await _gc_search(
@@ -77,7 +77,7 @@ class GoogleProvider(LLMProvider):
         model: str,
         messages: list[MultimodalMessage],
     ) -> Any:
-        from core.gemini_client import generate_json_multimodal as _gc_mm, get_client
+        from backend.core.gemini_client import generate_json_multimodal as _gc_mm, get_client
         from google.genai import types
 
         client = get_client(self._api_key)
@@ -113,12 +113,12 @@ class GoogleProvider(LLMProvider):
         Gemini.  Gemini responds with PCM 24 kHz audio chunks plus JSON
         transcript events, both forwarded back to the browser.
         """
-        from audio_utils import LIVE_API_INPUT_SAMPLE_RATE
+        from backend.audio_utils import LIVE_API_INPUT_SAMPLE_RATE
         from fastapi import WebSocketDisconnect
         from google import genai
         from google.genai import types
 
-        from core.gemini_client import _translate_gemini_error
+        from backend.core.gemini_client import translate_gemini_error
 
         if not self._api_key:
             raise ConfigError(
@@ -166,7 +166,7 @@ class GoogleProvider(LLMProvider):
                         logger.error("stream_live_audio task error: %s", exc)
 
         except (genai.errors.ClientError, genai.errors.ServerError) as e:
-            api_err = _translate_gemini_error(e)
+            api_err = translate_gemini_error(e)
             logger.error("Gemini Live API error: session=%s %s", session_id, api_err)
             try:
                 await websocket.send_text(
@@ -188,7 +188,7 @@ class GoogleProvider(LLMProvider):
         from fastapi import WebSocketDisconnect
         from google import genai
         from google.genai import types
-        from core.gemini_client import _translate_gemini_error
+        from backend.core.gemini_client import translate_gemini_error
 
         try:
             while True:
@@ -238,7 +238,7 @@ class GoogleProvider(LLMProvider):
         except WebSocketDisconnect:
             pass
         except (genai.errors.ClientError, genai.errors.ServerError) as e:
-            error = _translate_gemini_error(e)
+            error = translate_gemini_error(e)
             logger.error("_send_loop Gemini API error: %s", error)
             raise error
         except Exception as e:
@@ -255,69 +255,86 @@ class GoogleProvider(LLMProvider):
         """Forward Gemini audio + transcripts to the browser."""
         from fastapi import WebSocketDisconnect
         from google import genai
-        from core.gemini_client import _translate_gemini_error
+        from backend.core.gemini_client import translate_gemini_error
 
         input_transcript_buf: list[str] = []
         output_transcript_buf: list[str] = []
+        interview_complete = False
 
         try:
-            async for response in gemini_session.receive():
-                content = response.server_content
-                if content is None:
-                    continue
+            while True:  # loop over turns — receive() ends after each AI turn
+                async for response in gemini_session.receive():
+                    content = response.server_content
+                    if content is None:
+                        continue
 
-                if content.model_turn:
-                    for part in content.model_turn.parts:
-                        if part.inline_data and part.inline_data.data:
-                            await websocket.send_bytes(part.inline_data.data)
+                    if content.model_turn:
+                        for part in content.model_turn.parts:
+                            if part.inline_data and part.inline_data.data:
+                                await websocket.send_bytes(part.inline_data.data)
 
-                if content.input_transcription and content.input_transcription.text:
-                    text = content.input_transcription.text
-                    input_transcript_buf.append(text)
-                    await websocket.send_text(
-                        json.dumps(
-                            {"type": "transcript_input", "text": text, "timestamp": time.time()}
+                    if content.input_transcription and content.input_transcription.text:
+                        text = content.input_transcription.text
+                        input_transcript_buf.append(text)
+                        await websocket.send_text(
+                            json.dumps(
+                                {"type": "transcript_input", "text": text, "timestamp": time.time()}
+                            )
                         )
-                    )
 
-                if content.output_transcription and content.output_transcription.text:
-                    text = content.output_transcription.text
-                    output_transcript_buf.append(text)
-                    await websocket.send_text(
-                        json.dumps(
-                            {
-                                "type": "transcript_output",
-                                "text": text,
-                                "timestamp": time.time(),
-                            }
+                    if content.output_transcription and content.output_transcription.text:
+                        text = content.output_transcription.text
+                        output_transcript_buf.append(text)
+                        
+                        # Check if Sam said interview is complete
+                        if "INTERVIEW_COMPLETE" in text:
+                            interview_complete = True
+                        
+                        await websocket.send_text(
+                            json.dumps(
+                                {
+                                    "type": "transcript_output",
+                                    "text": text,
+                                    "timestamp": time.time(),
+                                }
+                            )
                         )
-                    )
 
-                if content.turn_complete:
-                    if output_transcript_buf and store:
-                        full_output = " ".join(output_transcript_buf)
-                        await store.append_transcript_turn(
-                            session_id, "Sam", full_output, time.time()
-                        )
+                    if content.turn_complete:
+                        if output_transcript_buf and store:
+                            full_output = " ".join(output_transcript_buf)
+                            await store.append_transcript_turn(
+                                session_id, "Sam", full_output, time.time()
+                            )
+                            output_transcript_buf.clear()
+
+                        if input_transcript_buf and store:
+                            full_input = " ".join(input_transcript_buf)
+                            await store.append_transcript_turn(
+                                session_id, "Founder", full_input, time.time()
+                            )
+                            input_transcript_buf.clear()
+
+                        await websocket.send_text(json.dumps({"type": "turn_complete"}))
+                        
+                        # Check if interview should end
+                        if interview_complete:
+                            logger.info("Sam marked interview complete: session=%s", session_id)
+                            await gemini_session.send_realtime_input(audio_stream_end=True)
+                            break
+
+                    if content.interrupted:
                         output_transcript_buf.clear()
-
-                    if input_transcript_buf and store:
-                        full_input = " ".join(input_transcript_buf)
-                        await store.append_transcript_turn(
-                            session_id, "Founder", full_input, time.time()
-                        )
-                        input_transcript_buf.clear()
-
-                    await websocket.send_text(json.dumps({"type": "turn_complete"}))
-
-                if content.interrupted:
-                    output_transcript_buf.clear()
-                    await websocket.send_text(json.dumps({"type": "interrupted"}))
+                        await websocket.send_text(json.dumps({"type": "interrupted"}))
+                
+                # If interview marked complete, break outer while loop too
+                if interview_complete:
+                    break
 
         except WebSocketDisconnect:
             pass
         except (genai.errors.ClientError, genai.errors.ServerError) as e:
-            error = _translate_gemini_error(e)
+            error = translate_gemini_error(e)
             logger.error("_receive_loop Gemini API error: %s", error)
             raise error
         except Exception as e:

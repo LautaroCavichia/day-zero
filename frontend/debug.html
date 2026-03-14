@@ -223,6 +223,22 @@
 
     .field-row { margin-bottom: 6px; }
     .field-label { color: #8b949e; font-size: 11px; margin-bottom: 3px; }
+
+    /* Microphone activity bar */
+    #mic-activity {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    #mic-activity-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #3fb950 0%, #58a6ff 50%, #d29922 100%);
+      width: 0%;
+      transition: width 0.1s ease-out;
+    }
   </style>
 </head>
 <body>
@@ -288,6 +304,20 @@
       </div>
       <div class="btn-row" style="margin-top:10px;">
         <button class="success" onclick="triggerDeliberation()">Start Deliberation</button>
+      </div>
+    </div>
+
+    <!-- Live Interview -->
+    <div class="section">
+      <div class="section-title">Live Interview (Audio)</div>
+      <p style="color:#8b949e; font-size:11px; margin-bottom:10px;">Live bidirectional audio interview with AI. Uses browser microphone + speaker.</p>
+      <div class="btn-row">
+        <button class="success" onclick="startLiveInterview()">Start Live Interview</button>
+        <button onclick="stopLiveInterview()">Stop Interview</button>
+      </div>
+      <div id="interview-status" style="margin-top:8px; font-size:11px; color:#8b949e;"></div>
+      <div id="mic-activity" style="display:none;">
+        <div id="mic-activity-bar"></div>
       </div>
     </div>
 
@@ -678,6 +708,248 @@
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Live Interview (WebSocket + Audio)
+  // ─────────────────────────────────────────────────────────────────────────
+  let liveWs = null;
+  let audioContext = null;
+  let audioProcessor = null;
+  let micActivityBar = null;
+  let outputTranscriptBuffer = '';
+  let outputTranscriptTimer = null;
+  let inputTranscriptBuffer = '';
+  let inputTranscriptTimer = null;
+  let nextAudioStartTime = 0;  // schedule audio chunks sequentially
+
+  async function startLiveInterview() {
+    if (!sessionId) { log('No session.', 'warn'); return; }
+    if (liveWs) { log('Interview already running', 'warn'); return; }
+
+    const status = document.getElementById('interview-status');
+    const micBar = document.getElementById('mic-activity');
+    status.textContent = 'Requesting microphone access...';
+    micBar.style.display = 'block';
+    nextAudioStartTime = 0;
+
+    try {
+      // Request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      log('Microphone access granted', 'ok');
+
+      // Initialize audio context
+      audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+
+      micActivityBar = document.getElementById('mic-activity-bar');
+
+      scriptProcessor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        
+        // Measure input level for visual feedback
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sum += Math.abs(inputData[i]);
+        }
+        const level = sum / inputData.length;
+        
+        // Show mic activity
+        if (micActivityBar) {
+          micActivityBar.style.width = (level * 500) + '%'; // Visual bar
+        }
+        
+        if (liveWs && liveWs.readyState === WebSocket.OPEN) {
+          // Apply strong gain (10x) to boost microphone input
+          const gain = 10.0;
+          const boosted = new Float32Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            boosted[i] = Math.max(-1, Math.min(1, inputData[i] * gain));
+          }
+          
+          // Resample from audioContext sample rate (48kHz) to 16kHz for Gemini Live API
+          const resampled = resampleAudio(boosted, audioContext.sampleRate, 16000);
+          
+          // Convert float32 to int16
+          const int16Data = convertF32toI16(resampled);
+          if (int16Data.byteLength > 0) {
+            liveWs.send(int16Data);
+          }
+        }
+      };
+
+      source.connect(scriptProcessor);
+      scriptProcessor.connect(audioContext.destination);
+
+      // Connect WebSocket
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${protocol}://${window.location.host}/ws/live/${sessionId}`;
+      liveWs = new WebSocket(wsUrl);
+
+      liveWs.onopen = () => {
+        status.textContent = 'Connected. Listening...';
+        log('Live interview WebSocket connected', 'ok');
+      };
+
+      liveWs.onmessage = (evt) => {
+        try {
+          // Binary data arrives as Blob, text as string
+          if (evt.data instanceof Blob) {
+            // Audio data — convert Blob to ArrayBuffer and play
+            evt.data.arrayBuffer().then(playAudio).catch(e => {
+              log(`Audio conversion error: ${e.message}`, 'error');
+            });
+          } else if (typeof evt.data === 'string') {
+            const msg = JSON.parse(evt.data);
+            if (msg.type === 'transcript_input') {
+              // Buffer input transcripts to group chunks
+              inputTranscriptBuffer += msg.text;
+              clearTimeout(inputTranscriptTimer);
+              
+              // Flush buffer after 200ms of no new chunks
+              inputTranscriptTimer = setTimeout(() => {
+                if (inputTranscriptBuffer) {
+                  log(`📢 You: ${inputTranscriptBuffer}`, 'info');
+                  inputTranscriptBuffer = '';
+                }
+              }, 200);
+            } else if (msg.type === 'transcript_output') {
+              // Buffer output transcripts to group chunks
+              outputTranscriptBuffer += msg.text;
+              clearTimeout(outputTranscriptTimer);
+              
+              // Flush buffer after 300ms of no new chunks
+              outputTranscriptTimer = setTimeout(() => {
+                if (outputTranscriptBuffer) {
+                  log(`🤖 AI: ${outputTranscriptBuffer}`, 'info');
+                  outputTranscriptBuffer = '';
+                }
+              }, 300);
+            } else if (msg.type === 'turn_complete') {
+              // Flush any remaining transcripts
+              if (inputTranscriptBuffer) {
+                log(`📢 You: ${inputTranscriptBuffer}`, 'info');
+                inputTranscriptBuffer = '';
+              }
+              if (outputTranscriptBuffer) {
+                log(`🤖 AI: ${outputTranscriptBuffer}`, 'info');
+                outputTranscriptBuffer = '';
+              }
+              status.textContent = 'Waiting for your input...';
+            } else if (msg.type === 'error') {
+              log(`Interview error: ${msg.message}`, 'error');
+              stopLiveInterview();
+            }
+          }
+        } catch (e) {
+          log(`Message parse error: ${e.message}`, 'error');
+        }
+      };
+
+      liveWs.onerror = (err) => {
+        log(`WebSocket error: ${err.message}`, 'error');
+        stopLiveInterview();
+      };
+
+      liveWs.onclose = () => {
+        log('Interview ended', 'warn');
+        status.textContent = 'Interview closed';
+        stopLiveInterview();
+      };
+    } catch (e) {
+      log(`startLiveInterview failed: ${e.message}`, 'error');
+      status.textContent = 'Failed to start';
+    }
+  }
+
+  function stopLiveInterview() {
+    nextAudioStartTime = 0;
+    if (liveWs) {
+      liveWs.close();
+      liveWs = null;
+    }
+    if (audioContext) {
+      audioContext.close();
+      audioContext = null;
+    }
+    clearTimeout(outputTranscriptTimer);
+    clearTimeout(inputTranscriptTimer);
+    if (outputTranscriptBuffer) {
+      log(`🤖 AI: ${outputTranscriptBuffer}`, 'info');
+      outputTranscriptBuffer = '';
+    }
+    if (inputTranscriptBuffer) {
+      log(`📢 You: ${inputTranscriptBuffer}`, 'info');
+      inputTranscriptBuffer = '';
+    }
+    const micBar = document.getElementById('mic-activity');
+    const micBarInner = document.getElementById('mic-activity-bar');
+    if (micBar) micBar.style.display = 'none';
+    if (micBarInner) micBarInner.style.width = '0%';
+    document.getElementById('interview-status').textContent = 'Stopped';
+  }
+
+  // Utility: Convert float32 to int16
+  function convertF32toI16(f32) {
+    const i16 = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++) {
+      i16[i] = Math.max(-1, Math.min(1, f32[i])) * 0x7FFF;
+    }
+    return i16.buffer;
+  }
+
+  // Utility: Resample audio (linear interpolation)
+  function resampleAudio(input, sourceRate, targetRate) {
+    if (sourceRate === targetRate) return input;
+    
+    const ratio = sourceRate / targetRate;
+    const output = new Float32Array(Math.ceil(input.length / ratio));
+    
+    for (let i = 0; i < output.length; i++) {
+      const srcIndex = i * ratio;
+      const srcIndexInt = Math.floor(srcIndex);
+      const srcIndexFrac = srcIndex - srcIndexInt;
+      
+      const s1 = input[srcIndexInt] || 0;
+      const s2 = input[srcIndexInt + 1] || 0;
+      
+      // Linear interpolation
+      output[i] = s1 + (s2 - s1) * srcIndexFrac;
+    }
+    
+    return output;
+  }
+  function playAudio(arrayBuffer) {
+    if (!audioContext) return;
+    try {
+      // PCM 16-bit signed integers at 24kHz from Gemini Live
+      const pcm16 = new Int16Array(arrayBuffer);
+      
+      // Convert to float32 [-1, 1]
+      const float32_24k = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        float32_24k[i] = pcm16[i] / 0x8000;
+      }
+      
+      // Resample 24kHz → audioContext native rate
+      const float32 = resampleAudio(float32_24k, 24000, audioContext.sampleRate);
+      
+      const audioBuffer = audioContext.createBuffer(1, float32.length, audioContext.sampleRate);
+      audioBuffer.getChannelData(0).set(float32);
+      
+      // Schedule this chunk to start exactly after the previous one ends
+      const currentTime = audioContext.currentTime;
+      const startTime = Math.max(currentTime + 0.05, nextAudioStartTime);
+      nextAudioStartTime = startTime + audioBuffer.duration;
+      
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+      source.start(startTime);
+    } catch (e) {
+      log(`Audio playback error: ${e.message}`, 'error');
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Raw API call

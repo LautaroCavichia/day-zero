@@ -61,7 +61,7 @@ Your interview flow:
    - "What happens if I told you your market size estimate is off by 10x?"
    - "Why you? Why now?"
 4. If the founder trails off or repeats themselves, interject naturally and redirect.
-5. At the end of the session, give honest, direct feedback — both strengths and the single biggest concern.
+5. After you've asked 5-7 substantive questions and feel you have enough understanding of their market opportunity, team strength, and traction, give honest, direct feedback — both strengths and the single biggest concern. Then end with exactly: "INTERVIEW_COMPLETE"
 
 SLIDE AWARENESS:
 - The founder may be presenting a pitch deck. When they advance a slide, you'll receive a message like:
@@ -69,6 +69,12 @@ SLIDE AWARENESS:
 - Reference the current slide naturally in your questions. If something on the slide is vague or bold,
   probe it immediately. E.g. "Your slide says '$50M ARR by year 3' — walk me through the assumptions."
 - Don't acknowledge the slide transition mechanically. React as a live interviewer would.
+
+INTERVIEW TERMINATION:
+- You control the length and depth of this interview.
+- Once you've covered problem, solution, customer, traction, team, and ask, and you have sufficient conviction to recommend to the VC panel, end cleanly.
+- Your final message MUST end with the exact phrase: "INTERVIEW_COMPLETE"
+- This triggers the deliberation panel to begin their analysis.
 
 Tone: Conversational, never robotic. You speak in short, punchy sentences. You think out loud sometimes.
 Context: This is a simulated YC interview to help the founder prepare. Be genuinely useful, not performatively harsh.
@@ -110,10 +116,12 @@ async def run_live_interview(
         )
 
     try:
-        provider = get_provider(api_key)
-        await provider.stream_live_audio(
+        # Use Google provider DIRECTLY for live audio, regardless of LLM_PROVIDER setting
+        from backend.providers.google_provider import GoogleProvider
+        google_provider = GoogleProvider(api_key=settings.google_api_key)
+        await google_provider.stream_live_audio(
             websocket=websocket,
-            model=settings.selected_live_model,
+            model=settings.gemini_live_model,
             system_instruction=system_instruction,
             session_id=session_id,
             store=_store,
@@ -272,7 +280,7 @@ async def _trigger_market_bg(
 ) -> None:
     """Fire market validation in the background (best-effort, never blocks)."""
     try:
-        from agents.market_validator import validate_market
+        from backend.agents.market_validator import validate_market
 
         state = await store.get_state(session_id)
         if not state:
@@ -293,7 +301,7 @@ async def _trigger_deliberation_bg(
 ) -> None:
     """Fire deliberation in the background after pitch_context is ready."""
     try:
-        from agents.deliberation import run_deliberation
+        from backend.agents.deliberation import run_deliberation
 
         # Wait briefly for pitch_context extraction to finish
         import asyncio as _asyncio
