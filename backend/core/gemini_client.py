@@ -47,11 +47,19 @@ def parse_json_response(raw: str) -> Any:
     Parse a JSON string from a Gemini response.
 
     Handles the common case where the model wraps its output in markdown
-    code fences (```json … ```) even when asked not to.
+    code fences (```json … ```) and/or XML-style tags (e.g. <response>…</response>)
+    even when asked not to.
 
     Raises ``GeminiResponseError`` if the string cannot be parsed.
     """
     text = raw.strip()
+
+    # Strip outer XML-style wrapper tags (e.g. <response>...</response>)
+    import re as _re
+
+    text = _re.sub(r"^<[^>]+>\s*", "", text)
+    text = _re.sub(r"\s*</[^>]+>$", "", text)
+    text = text.strip()
 
     # Strip optional language tag + closing fence
     if text.startswith("```"):
@@ -122,10 +130,14 @@ async def generate_json_with_search(
     """
     Like ``generate_json`` but enables the Google Search grounding tool.
     Used exclusively by the MarketValidatorAgent.
+
+    NOTE: ``response_mime_type="application/json"`` is intentionally omitted
+    here — the Gemini API rejects that combination with the Google Search tool.
+    We rely on ``parse_json_response`` (markdown fence stripper) instead.
     """
     config_kwargs: dict[str, Any] = {
         "tools": [types.Tool(google_search=types.GoogleSearch())],
-        "response_mime_type": "application/json",
+        # response_mime_type must NOT be set when using Google Search grounding
     }
     if system_instruction:
         config_kwargs["system_instruction"] = system_instruction
@@ -142,6 +154,23 @@ async def generate_json_with_search(
     )
 
     raw = response.text or ""
+    if not raw.strip():
+        # Log full candidate info to help diagnose empty responses
+        if response.candidates:
+            c = response.candidates[0]
+            parts = (c.content.parts or []) if c.content else []
+            logger.warning(
+                "generate_json_with_search: empty response text. finish_reason=%s num_parts=%d",
+                getattr(c, "finish_reason", "?"),
+                len(parts),
+            )
+            for i, p in enumerate(parts):
+                pt = getattr(p, "text", None) or ""
+                logger.warning("  part[%d] text_len=%d text[:100]=%r", i, len(pt), pt[:100])
+        else:
+            logger.warning("generate_json_with_search: no candidates in response")
+    else:
+        logger.info("generate_json_with_search: got %d chars", len(raw))
     return parse_json_response(raw)
 
 

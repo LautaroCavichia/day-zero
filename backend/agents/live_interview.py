@@ -28,6 +28,8 @@ import session_state as ss
 from audio_utils import LIVE_API_INPUT_SAMPLE_RATE
 from config import settings
 from core.formatters import format_pitch_context
+from core.gemini_client import generate_json, get_client
+from core.models import PitchContext
 from fastapi import WebSocket, WebSocketDisconnect
 from google import genai
 from google.genai import types
@@ -147,6 +149,8 @@ async def run_live_interview(
     finally:
         await _store.update(session_id, {"live_interview_active": False})
         logger.info("LiveInterview WS closed: session=%s", session_id)
+        # Fire post-interview pipeline as background tasks (non-blocking)
+        asyncio.create_task(_post_interview_pipeline(session_id, key, _store))
         try:
             await websocket.close()
         except Exception:
@@ -257,3 +261,218 @@ async def _receive_loop(
     except Exception as e:
         logger.error("_receive_loop error: %s", e)
         raise
+
+
+# ── Post-interview pipeline ────────────────────────────────────────────────
+
+_TRANSCRIPT_EXTRACTOR_PROMPT = """You are an expert at extracting structured startup pitch information from interview transcripts.
+
+Below is a live interview transcript between "Sam" (a YC partner) and "Founder".
+Extract the startup's pitch context from the Founder's answers only.
+
+Return ONLY a JSON object with these exact keys (use "" for missing fields):
+{
+  "company_name": "",
+  "one_liner": "",
+  "problem": "",
+  "solution": "",
+  "target_customer": "",
+  "business_model": "",
+  "traction": "",
+  "team": "",
+  "ask": "",
+  "stage": ""
+}
+
+stage must be one of: "idea", "MVP", "seed", "series-a", "growth", "unknown".
+Be generous — infer reasonable values from context. Output ONLY the JSON object."""
+
+
+async def _post_interview_pipeline(
+    session_id: str,
+    api_key: str,
+    store: ss.SessionStore,
+) -> None:
+    """
+    Fired as a background task when the WebSocket closes.
+    Sequentially:
+      1. Extract pitch_context from the live transcript (if not already set)
+      2. Score delivery
+      3. Kick off market validation (fire-and-forget)
+      4. Kick off deliberation (fire-and-forget, waits for pitch_context)
+    """
+    # Step 1: extract pitch_context from transcript
+    await _extract_pitch_from_transcript(session_id, api_key, store)
+
+    # Step 2: score delivery
+    await _score_delivery(session_id, api_key, store)
+
+    # Steps 3 & 4: fire market + deliberation in parallel (both background)
+    asyncio.create_task(_trigger_market_bg(session_id, api_key, store))
+    asyncio.create_task(_trigger_deliberation_bg(session_id, api_key, store))
+
+
+async def _extract_pitch_from_transcript(
+    session_id: str,
+    api_key: str,
+    store: ss.SessionStore,
+) -> None:
+    """
+    Use Gemini to extract structured pitch_context from the live transcript.
+    Only runs if pitch_context is not already populated (e.g. from /api/pitch).
+    """
+    try:
+        state = await store.get_state(session_id)
+        if not state:
+            return
+
+        # Don't overwrite if pitch was submitted via the typed form
+        existing = state.get("pitch_context", {})
+        if existing and any(existing.values()):
+            logger.info("_extract_pitch_from_transcript: pitch_context already set, skipping")
+            return
+
+        transcript = state.get("live_transcript", [])
+        if not transcript:
+            logger.info("_extract_pitch_from_transcript: no transcript, skipping")
+            return
+
+        transcript_text = "\n".join(
+            f"{t['speaker']}: {t['text']}" for t in transcript if t.get("text")
+        )
+
+        client = get_client(api_key)
+        raw = await generate_json(
+            client=client,
+            model=settings.gemini_flash_model,
+            user_content=f"{_TRANSCRIPT_EXTRACTOR_PROMPT}\n\n---\nTRANSCRIPT:\n{transcript_text}\n---",
+        )
+
+        pitch_context = PitchContext.model_validate(raw)
+        await store.update(session_id, {"pitch_context": pitch_context.model_dump()})
+        logger.info(
+            "_extract_pitch_from_transcript: extracted pitch_context for session=%s company=%s",
+            session_id,
+            pitch_context.company_name or "unknown",
+        )
+
+    except Exception as e:
+        logger.warning("_extract_pitch_from_transcript: failed for session=%s: %s", session_id, e)
+
+
+async def _trigger_market_bg(
+    session_id: str,
+    api_key: str,
+    store: ss.SessionStore,
+) -> None:
+    """Fire market validation in the background (best-effort, never blocks)."""
+    try:
+        from agents.market_validator import validate_market
+
+        state = await store.get_state(session_id)
+        if not state:
+            return
+        pitch_ctx = state.get("pitch_context", {})
+        if not any(pitch_ctx.values()):
+            logger.info("_trigger_market_bg: no pitch_context, skipping")
+            return
+        await validate_market(session_id, api_key=api_key, store=store)
+    except Exception as e:
+        logger.warning("_trigger_market_bg: failed for session=%s: %s", session_id, e)
+
+
+async def _trigger_deliberation_bg(
+    session_id: str,
+    api_key: str,
+    store: ss.SessionStore,
+) -> None:
+    """Fire deliberation in the background after pitch_context is ready."""
+    try:
+        from agents.deliberation import run_deliberation
+
+        # Wait briefly for pitch_context extraction to finish
+        import asyncio as _asyncio
+
+        for _ in range(10):
+            state = await store.get_state(session_id)
+            if state and any(state.get("pitch_context", {}).values()):
+                break
+            await _asyncio.sleep(2)
+        else:
+            logger.warning("_trigger_deliberation_bg: pitch_context never populated, skipping")
+            return
+        await run_deliberation(session_id, api_key=api_key, store=store)
+    except Exception as e:
+        logger.warning("_trigger_deliberation_bg: failed for session=%s: %s", session_id, e)
+
+
+# ── Delivery scoring ───────────────────────────────────────────────────────
+
+_DELIVERY_SCORER_PROMPT = """You are analyzing a startup founder's live interview transcript to score their delivery.
+
+Analyze ONLY the Founder's turns in this transcript. Score on these dimensions:
+
+- confidence (0.0–1.0): Does the founder speak with conviction? Do they hedge excessively?
+- specificity (0.0–1.0): Do they give concrete numbers, names, examples? Or vague generalities?
+- energy (0.0–1.0): Does the text suggest engaged, enthusiastic delivery? Or flat, rote answers?
+- hesitation_count (int): Count filler phrases: "um", "uh", "like", "you know", "sort of", "kind of", "I think maybe"
+
+Return ONLY a JSON object:
+{
+  "confidence": <float 0-1>,
+  "specificity": <float 0-1>,
+  "energy": <float 0-1>,
+  "hesitation_count": <int>
+}"""
+
+
+async def _score_delivery(
+    session_id: str,
+    api_key: str,
+    store: ss.SessionStore,
+) -> None:
+    """
+    Analyze the live_transcript to compute delivery scores.
+    Called as a fire-and-forget task after the WebSocket closes.
+    Writes to session.state['delivery_scores'].
+    """
+    try:
+        state = await store.get_state(session_id)
+        if not state:
+            return
+
+        transcript = state.get("live_transcript", [])
+        if not transcript:
+            return
+
+        # Build founder-only transcript text
+        founder_turns = [
+            f"Founder: {t['text']}"
+            for t in transcript
+            if t.get("speaker") == "Founder" and t.get("text")
+        ]
+        if not founder_turns:
+            return
+
+        transcript_text = "\n".join(founder_turns)
+        client = get_client(api_key)
+
+        raw = await generate_json(
+            client=client,
+            model=settings.gemini_flash_model,
+            user_content=f"{_DELIVERY_SCORER_PROMPT}\n\n---\nTRANSCRIPT:\n{transcript_text}\n---",
+        )
+
+        # Clamp values to valid ranges
+        scores = {
+            "confidence": max(0.0, min(1.0, float(raw.get("confidence", 0.0)))),
+            "specificity": max(0.0, min(1.0, float(raw.get("specificity", 0.0)))),
+            "energy": max(0.0, min(1.0, float(raw.get("energy", 0.0)))),
+            "hesitation_count": max(0, int(raw.get("hesitation_count", 0))),
+        }
+
+        await store.update(session_id, {"delivery_scores": scores})
+        logger.info("Delivery scores computed for session=%s: %s", session_id, scores)
+
+    except Exception as e:
+        logger.warning("Could not compute delivery scores for session=%s: %s", session_id, e)

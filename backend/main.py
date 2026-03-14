@@ -258,6 +258,11 @@ async def upload_deck(
         raise FileTooLargeError(len(file_bytes), settings.max_upload_bytes)
 
     critique = await analyze_deck(session_id, file_bytes, filename)
+
+    # Auto-kick deliberation in background (market may still be running — that's fine,
+    # deliberation uses whatever context is in session state at the time each round runs)
+    asyncio.create_task(_run_deliberation_bg(session_id))
+
     return {"status": "ok", "deck_critique": critique.model_dump()}
 
 
@@ -387,6 +392,13 @@ if os.path.isdir(_frontend_dir):
         if os.path.exists(index_path):
             return FileResponse(index_path)
         raise HTTPException(status_code=404, detail="Frontend not found")
+
+    @app.get("/debug", include_in_schema=False)
+    async def serve_debug():
+        debug_path = os.path.join(_frontend_dir, "debug.html")
+        if os.path.exists(debug_path):
+            return FileResponse(debug_path)
+        raise HTTPException(status_code=404, detail="Debug page not found")
 
 
 # ── Health check ────────────────────────────────────────────────────────────
