@@ -12,12 +12,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from google.adk.sessions import InMemorySessionService
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from core.errors import AgentError
-from session_state import SessionStore
+from backend.core.errors import AgentError
+from backend.session_state import SessionStore, _MemoryBackend
 
 MOCK_CRITIQUE = {
     "narrative_arc_score": 7.5,
@@ -46,7 +45,7 @@ def make_fake_png() -> bytes:
 
 @pytest_asyncio.fixture
 async def store():
-    return SessionStore(service=InMemorySessionService())
+    return SessionStore(backend=_MemoryBackend())
 
 
 @pytest_asyncio.fixture
@@ -56,25 +55,24 @@ async def sid(store):
 
 @pytest.mark.asyncio
 async def test_analyze_deck_pdf_success(store, sid):
-    mock_resp = MagicMock()
-    mock_resp.text = json.dumps(MOCK_CRITIQUE)
+    mock_critique = MOCK_CRITIQUE
 
     fake_image = MagicMock()
     fake_image.save = lambda buf, format: buf.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
 
     with (
-        patch("core.gemini_client.genai.Client") as MockClient,
+        patch("backend.core.llm_factory.get_provider") as mock_get_provider,
         patch(
-            "agents.deck_analyst._file_to_images",
+            "backend.agents.deck_analyst._file_to_images",
             new=AsyncMock(return_value=[fake_image, fake_image]),
         ),
-        patch("agents.deck_analyst._pil_to_bytes", return_value=make_fake_png()),
+        patch("backend.agents.deck_analyst._pil_to_bytes", return_value=make_fake_png()),
     ):
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(return_value=mock_resp)
-        MockClient.return_value = mock_instance
+        mock_provider = AsyncMock()
+        mock_provider.generate_json_multimodal = AsyncMock(return_value=mock_critique)
+        mock_get_provider.return_value = mock_provider
 
-        from agents.deck_analyst import analyze_deck
+        from backend.agents.deck_analyst import analyze_deck
 
         result = await analyze_deck(
             sid, b"fake-pdf-bytes", "deck.pdf", api_key="test-key", store=store
@@ -89,19 +87,18 @@ async def test_analyze_deck_pdf_success(store, sid):
 
 @pytest.mark.asyncio
 async def test_analyze_deck_writes_to_session(store, sid):
-    mock_resp = MagicMock()
-    mock_resp.text = json.dumps(MOCK_CRITIQUE)
+    mock_critique = MOCK_CRITIQUE
 
     with (
-        patch("core.gemini_client.genai.Client") as MockClient,
-        patch("agents.deck_analyst._file_to_images", new=AsyncMock(return_value=[MagicMock()])),
-        patch("agents.deck_analyst._pil_to_bytes", return_value=make_fake_png()),
+        patch("backend.core.llm_factory.get_provider") as mock_get_provider,
+        patch("backend.agents.deck_analyst._file_to_images", new=AsyncMock(return_value=[MagicMock()])),
+        patch("backend.agents.deck_analyst._pil_to_bytes", return_value=make_fake_png()),
     ):
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(return_value=mock_resp)
-        MockClient.return_value = mock_instance
+        mock_provider = AsyncMock()
+        mock_provider.generate_json_multimodal = AsyncMock(return_value=mock_critique)
+        mock_get_provider.return_value = mock_provider
 
-        from agents.deck_analyst import analyze_deck
+        from backend.agents.deck_analyst import analyze_deck
 
         await analyze_deck(sid, b"fake-pdf", "deck.pdf", api_key="test-key", store=store)
 
@@ -113,15 +110,15 @@ async def test_analyze_deck_writes_to_session(store, sid):
 
 @pytest.mark.asyncio
 async def test_analyze_deck_empty_images_raises(store, sid):
-    with patch("agents.deck_analyst._file_to_images", new=AsyncMock(return_value=[])):
-        from agents.deck_analyst import analyze_deck
+    with patch("backend.agents.deck_analyst._file_to_images", new=AsyncMock(return_value=[])):
+        from backend.agents.deck_analyst import analyze_deck
 
         with pytest.raises(AgentError, match="Could not extract images"):
             await analyze_deck(sid, b"empty", "deck.pdf", api_key="test-key", store=store)
 
 
 def test_pil_to_bytes_returns_png():
-    from agents.deck_analyst import _pil_to_bytes
+    from backend.agents.deck_analyst import _pil_to_bytes
     from PIL import Image
 
     img = Image.new("RGB", (10, 10))
@@ -133,7 +130,7 @@ def test_unsupported_file_type_raises():
     """_file_to_images raises AgentError for unsupported extension."""
     import asyncio
 
-    from agents.deck_analyst import _file_to_images
+    from backend.agents.deck_analyst import _file_to_images
 
     with pytest.raises(AgentError, match="Unsupported file type"):
         asyncio.run(_file_to_images(b"data", "deck.docx"))

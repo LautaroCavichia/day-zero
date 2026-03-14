@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import logging
 
-import session_state as ss
-from config import settings
-from core.gemini_client import generate_json, get_client
-from core.models import PitchContext
+import backend.session_state as ss
+from backend.config import settings
+from backend.core.llm_factory import get_provider
+from backend.core.models import PitchContext
 from google.adk.agents import LlmAgent
 
 logger = logging.getLogger(__name__)
@@ -87,12 +87,11 @@ async def extract_pitch_context(
 
     Returns a validated ``PitchContext`` Pydantic model.
     """
-    client = get_client(api_key)
+    provider = get_provider(api_key)
 
-    raw = await generate_json(
-        client=client,
-        model=settings.gemini_flash_model,
-        user_content=f"{PITCH_EXTRACTOR_PROMPT}\n\n---\nPITCH TEXT:\n{pitch_text}\n---",
+    raw = await provider.generate_json(
+        model=settings.selected_flash_model,
+        user_message=f"{PITCH_EXTRACTOR_PROMPT}\n\n---\nPITCH TEXT:\n{pitch_text}\n---",
     )
 
     return PitchContext.model_validate(raw)

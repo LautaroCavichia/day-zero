@@ -1,11 +1,15 @@
 """
 agents/live_interview.py — LiveInterviewAgent
 
-Bridges the browser WebSocket ↔ Gemini Live API.
+Bridges the browser WebSocket ↔ the configured live audio provider.
 
-Audio pipeline:
-  Browser (PCM 16kHz) → WS → send_realtime_input → Gemini Live
+Audio pipeline (Google branch):
+  Browser (PCM 16kHz) → WS → GoogleProvider → Gemini Live
   Gemini Live → audio chunks (PCM 24kHz) → WS → Browser
+
+Audio pipeline (OpenAI branch):
+  Browser (PCM 16kHz) → WS → OpenAIProvider → OpenAI Realtime API
+  OpenAI Realtime → audio chunks (PCM 24kHz) → WS → Browser
 
 Text events emitted over the same WebSocket as JSON frames:
   { "type": "transcript_input",  "text": "...", "timestamp": 1.23 }
@@ -24,15 +28,12 @@ import json
 import logging
 import time
 
-import session_state as ss
-from audio_utils import LIVE_API_INPUT_SAMPLE_RATE
-from config import settings
-from core.formatters import format_pitch_context
-from core.gemini_client import generate_json, get_client, translate_gemini_error
-from core.models import PitchContext
+import backend.session_state as ss
+from backend.config import settings
+from backend.core.formatters import format_pitch_context
+from backend.core.llm_factory import get_provider
+from backend.core.models import PitchContext
 from fastapi import WebSocket, WebSocketDisconnect
-from google import genai
-from google.genai import types
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ async def run_live_interview(
       - Text frames from client → JSON control messages:
           { "type": "end_stream" }   — graceful mic stop
           { "type": "ping" }         — keepalive
-      - Binary frames to client → PCM 24kHz audio from Gemini
+      - Binary frames to client → PCM 24kHz audio from provider
       - Text frames to client  → JSON transcript/event messages
     """
     _store = store or ss.default_store
@@ -96,9 +97,6 @@ async def run_live_interview(
     logger.info("LiveInterview WS opened: session=%s", session_id)
 
     await _store.update(session_id, {"live_interview_active": True})
-
-    key = api_key or settings.google_api_key
-    client = genai.Client(api_key=key)
 
     state = await _store.get_state(session_id)
     pitch_ctx = state.get("pitch_context", {}) if state else {}
@@ -111,48 +109,19 @@ async def run_live_interview(
             f"targeted questions — do NOT read it back verbatim):\n{pitch_summary}"
         )
 
-    live_config = types.LiveConnectConfig(
-        response_modalities=[types.Modality.AUDIO],
-        system_instruction=types.Content(parts=[types.Part(text=system_instruction)]),
-        input_audio_transcription=types.AudioTranscriptionConfig(),
-        output_audio_transcription=types.AudioTranscriptionConfig(),
-        # VAD is on by default — handles interruptions natively
-    )
-
     try:
-        async with client.aio.live.connect(
-            model=settings.gemini_live_model, config=live_config
-        ) as gemini_session:
-            logger.info("Gemini Live session established: session=%s", session_id)
-
-            send_task = asyncio.create_task(_send_loop(websocket, gemini_session, session_id))
-            recv_task = asyncio.create_task(
-                _receive_loop(websocket, gemini_session, session_id, _store)
-            )
-            heartbeat_task = asyncio.create_task(_heartbeat_loop(websocket, session_id))
-
-            done, pending = await asyncio.wait(
-                [send_task, recv_task, heartbeat_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
-            for task in done:
-                exc = task.exception()
-                if exc and not isinstance(exc, WebSocketDisconnect):
-                    logger.error("LiveInterview task error: %s", exc)
-
-    except (genai.errors.ClientError, genai.errors.ServerError) as e:
-        api_err = translate_gemini_error(e)
-        logger.error("LiveInterview Gemini API error: %s", api_err)
+        provider = get_provider(api_key)
+        await provider.stream_live_audio(
+            websocket=websocket,
+            model=settings.selected_live_model,
+            system_instruction=system_instruction,
+            session_id=session_id,
+            store=_store,
+        )
+    except NotImplementedError as e:
+        logger.warning("LiveInterview: provider does not support audio streaming: %s", e)
         try:
-            await websocket.send_text(json.dumps({"type": "error", "message": api_err.message}))
+            await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
         except Exception:
             pass
     except Exception as e:
@@ -164,8 +133,7 @@ async def run_live_interview(
     finally:
         await _store.update(session_id, {"live_interview_active": False})
         logger.info("LiveInterview WS closed: session=%s", session_id)
-        # Fire post-interview pipeline as background tasks (non-blocking)
-        asyncio.create_task(_post_interview_pipeline(session_id, key, _store))
+        asyncio.create_task(_post_interview_pipeline(session_id, api_key, _store))
         try:
             await websocket.close()
         except Exception:
@@ -177,156 +145,28 @@ async def _send_loop(
     gemini_session,
     session_id: str,
 ) -> None:
-    """Read audio/control frames from the browser and forward to Gemini."""
-    try:
-        while True:
-            message = await websocket.receive()
+    """Read audio/control frames from the browser and forward to Gemini.
 
-            if message["type"] == "websocket.disconnect":
-                break
-
-            if "bytes" in message and message["bytes"]:
-                await gemini_session.send_realtime_input(
-                    audio=types.Blob(
-                        data=message["bytes"],
-                        mime_type=f"audio/pcm;rate={LIVE_API_INPUT_SAMPLE_RATE}",
-                    )
-                )
-
-            elif "text" in message and message["text"]:
-                try:
-                    ctrl = json.loads(message["text"])
-                except json.JSONDecodeError:
-                    continue
-
-                msg_type = ctrl.get("type")
-
-                if msg_type == "end_stream":
-                    await gemini_session.send_realtime_input(audio_stream_end=True)
-                    logger.info("Audio stream ended: session=%s", session_id)
-                    break
-
-                elif msg_type == "pong":
-                    # Heartbeat acknowledgement — no action needed
-                    pass
-
-                elif msg_type == "slide_change":
-                    # Founder advanced to a new slide.
-                    # Inject a text message into the Live session so Sam knows.
-                    slide_index = ctrl.get("index", 0)
-                    slide_title = ctrl.get("title", f"Slide {slide_index + 1}")
-                    slide_total = ctrl.get("total", "?")
-                    context_msg = (
-                        f"[SLIDE {slide_index + 1} of {slide_total}: {slide_title}] "
-                        f"The founder has advanced to this slide."
-                    )
-                    await gemini_session.send_realtime_input(text=context_msg)
-                    logger.info(
-                        "Slide change injected: session=%s slide=%d/%s title=%s",
-                        session_id,
-                        slide_index + 1,
-                        slide_total,
-                        slide_title,
-                    )
-
-    except WebSocketDisconnect:
-        pass
-    except (genai.errors.ClientError, genai.errors.ServerError) as e:
-        logger.error("_send_loop Gemini API error: %s", translate_gemini_error(e))
-        raise translate_gemini_error(e)
-    except Exception as e:
-        logger.error("_send_loop error: %s", e)
-        raise
-
-
-async def _heartbeat_loop(websocket: WebSocket, session_id: str) -> None:
+    .. deprecated::
+        This function is no longer called directly.  Audio bridging has moved
+        into ``providers.google_provider.GoogleProvider._send_loop``.
+        Kept for reference only.
     """
-    Send a ``{"type": "ping"}`` frame every ``ws_heartbeat_interval_seconds``
-    seconds to keep the connection alive through proxies and load balancers.
-
-    The client responds with ``{"type": "pong"}`` which is handled in
-    ``_send_loop`` (ignored — its purpose is just to reset idle timers).
-    """
-    interval = settings.ws_heartbeat_interval_seconds
-    try:
-        while True:
-            await asyncio.sleep(interval)
-            await websocket.send_text(json.dumps({"type": "ping"}))
-            logger.debug("LiveInterview heartbeat sent: session=%s", session_id)
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass  # WebSocket closed — let the main loop handle cleanup
 
 
-async def _receive_loop(
+async def _receive_loop(  # noqa: E303
     websocket: WebSocket,
     gemini_session,
     session_id: str,
     store: ss.SessionStore,
 ) -> None:
-    """Read responses from Gemini and forward audio + transcript to browser."""
-    input_transcript_buf: list[str] = []
-    output_transcript_buf: list[str] = []
+    """Read responses from Gemini and forward audio + transcript to browser.
 
-    try:
-        async for response in gemini_session.receive():
-            content = response.server_content
-            if content is None:
-                continue
-
-            # ── Audio chunks ─────────────────────────────────────────────
-            if content.model_turn:
-                for part in content.model_turn.parts:
-                    if part.inline_data and part.inline_data.data:
-                        await websocket.send_bytes(part.inline_data.data)
-
-            # ── Transcripts ──────────────────────────────────────────────
-            if content.input_transcription and content.input_transcription.text:
-                text = content.input_transcription.text
-                input_transcript_buf.append(text)
-                await websocket.send_text(
-                    json.dumps({"type": "transcript_input", "text": text, "timestamp": time.time()})
-                )
-
-            if content.output_transcription and content.output_transcription.text:
-                text = content.output_transcription.text
-                output_transcript_buf.append(text)
-                await websocket.send_text(
-                    json.dumps(
-                        {"type": "transcript_output", "text": text, "timestamp": time.time()}
-                    )
-                )
-
-            # ── Turn complete ─────────────────────────────────────────────
-            if content.turn_complete:
-                if output_transcript_buf:
-                    full_output = " ".join(output_transcript_buf)
-                    await store.append_transcript_turn(session_id, "Sam", full_output, time.time())
-                    output_transcript_buf.clear()
-
-                if input_transcript_buf:
-                    full_input = " ".join(input_transcript_buf)
-                    await store.append_transcript_turn(
-                        session_id, "Founder", full_input, time.time()
-                    )
-                    input_transcript_buf.clear()
-
-                await websocket.send_text(json.dumps({"type": "turn_complete"}))
-
-            # ── Interruption ──────────────────────────────────────────────
-            if content.interrupted:
-                output_transcript_buf.clear()
-                await websocket.send_text(json.dumps({"type": "interrupted"}))
-
-    except WebSocketDisconnect:
-        pass
-    except (genai.errors.ClientError, genai.errors.ServerError) as e:
-        logger.error("_receive_loop Gemini API error: %s", translate_gemini_error(e))
-        raise translate_gemini_error(e)
-    except Exception as e:
-        logger.error("_receive_loop error: %s", e)
-        raise
+    .. deprecated::
+        This function is no longer called directly.  Audio bridging has moved
+        into ``providers.google_provider.GoogleProvider._receive_loop``.
+        Kept for reference only.
+    """
 
 
 # ── Post-interview pipeline ────────────────────────────────────────────────
@@ -407,11 +247,10 @@ async def _extract_pitch_from_transcript(
             f"{t['speaker']}: {t['text']}" for t in transcript if t.get("text")
         )
 
-        client = get_client(api_key)
-        raw = await generate_json(
-            client=client,
-            model=settings.gemini_flash_model,
-            user_content=f"{_TRANSCRIPT_EXTRACTOR_PROMPT}\n\n---\nTRANSCRIPT:\n{transcript_text}\n---",
+        provider = get_provider(api_key)
+        raw = await provider.generate_json(
+            model=settings.selected_flash_model,
+            user_message=f"{_TRANSCRIPT_EXTRACTOR_PROMPT}\n\n---\nTRANSCRIPT:\n{transcript_text}\n---",
         )
 
         pitch_context = PitchContext.model_validate(raw)
@@ -521,12 +360,10 @@ async def _score_delivery(
             return
 
         transcript_text = "\n".join(founder_turns)
-        client = get_client(api_key)
-
-        raw = await generate_json(
-            client=client,
-            model=settings.gemini_flash_model,
-            user_content=f"{_DELIVERY_SCORER_PROMPT}\n\n---\nTRANSCRIPT:\n{transcript_text}\n---",
+        provider = get_provider(api_key)
+        raw = await provider.generate_json(
+            model=settings.selected_flash_model,
+            user_message=f"{_DELIVERY_SCORER_PROMPT}\n\n---\nTRANSCRIPT:\n{transcript_text}\n---",
         )
 
         # Clamp values to valid ranges

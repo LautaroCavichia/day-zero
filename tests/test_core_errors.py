@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from core.errors import (
+from backend.core.errors import (
     AgentError,
     ConfigError,
     DayZeroError,

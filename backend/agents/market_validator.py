@@ -15,12 +15,12 @@ from __future__ import annotations
 
 import logging
 
-import session_state as ss
-from config import settings
-from core.errors import PitchContextEmptyError
-from core.formatters import format_pitch_context_for_research
-from core.gemini_client import generate_json_with_search, get_client
-from core.models import MarketIntel
+import backend.session_state as ss
+from backend.config import settings
+from backend.core.errors import PitchContextEmptyError
+from backend.core.formatters import format_pitch_context_for_research
+from backend.core.llm_factory import get_provider
+from backend.core.models import MarketIntel
 
 logger = logging.getLogger(__name__)
 
@@ -101,14 +101,13 @@ async def validate_market(
 
     await _store.set_task_status(session_id, "market_intel_status", "running")
 
-    client = get_client(api_key)
+    provider = get_provider(api_key)
     pitch_summary = format_pitch_context_for_research(pitch_ctx)
     prompt = f"{MARKET_VALIDATOR_PROMPT}\n\n---\nPITCH CONTEXT:\n{pitch_summary}\n---"
 
-    raw = await generate_json_with_search(
-        client=client,
-        model=settings.gemini_flash_model,
-        user_content=prompt,
+    raw = await provider.generate_json_with_search(
+        model=settings.selected_flash_model,
+        user_message=prompt,
     )
 
     market_intel = MarketIntel.model_validate(raw)

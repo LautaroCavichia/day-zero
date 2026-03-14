@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import logging
 
-import session_state as ss
-from config import settings
-from core.errors import SessionStateError
-from core.gemini_client import generate_json, get_client
-from core.models import DebateRound, FinalVerdict, OperatorOutput, OptimistOutput, SkepticOutput
+import backend.session_state as ss
+from backend.config import settings
+from backend.core.errors import SessionStateError
+from backend.core.llm_factory import get_provider
+from backend.core.models import DebateRound, FinalVerdict, OperatorOutput, OptimistOutput, SkepticOutput
 
 logger = logging.getLogger(__name__)
 
@@ -196,13 +196,12 @@ def _build_debate_context(state: dict) -> str:
 # ── Persona runner ─────────────────────────────────────────────────────────
 
 
-async def _run_persona(client, system_prompt: str, user_content: str) -> dict:
+async def _run_persona(provider, system_prompt: str, user_content: str) -> dict:
     """Run a single persona call and return the raw parsed dict."""
-    return await generate_json(
-        client=client,
-        model=settings.gemini_flash_model,
+    return await provider.generate_json(
+        model=settings.selected_flash_model,
+        user_message=user_content,
         system_instruction=system_prompt,
-        user_content=user_content,
     )
 
 
@@ -235,7 +234,7 @@ async def run_deliberation(
 
     await _store.set_task_status(session_id, "deliberation_status", "running")
 
-    client = get_client(api_key)
+    provider = get_provider(api_key)
     debate_rounds: list[dict] = []
 
     for round_num in range(1, settings.debate_rounds + 1):
@@ -251,9 +250,9 @@ async def run_deliberation(
         context = _build_debate_context(state)
         round_prompt = f"ROUND {round_num} OF {settings.debate_rounds}\n\n{context}"
 
-        skeptic_raw = await _run_persona(client, SKEPTIC_PROMPT, round_prompt)
-        optimist_raw = await _run_persona(client, OPTIMIST_PROMPT, round_prompt)
-        operator_raw = await _run_persona(client, OPERATOR_PROMPT, round_prompt)
+        skeptic_raw = await _run_persona(provider, SKEPTIC_PROMPT, round_prompt)
+        optimist_raw = await _run_persona(provider, OPTIMIST_PROMPT, round_prompt)
+        operator_raw = await _run_persona(provider, OPERATOR_PROMPT, round_prompt)
 
         # Validate each persona output
         round_obj = DebateRound(
@@ -272,7 +271,7 @@ async def run_deliberation(
     state = await _store.require_state(session_id)
     full_context = _build_debate_context(state)
 
-    verdict_raw = await _run_persona(client, SYNTHESIZER_PROMPT, full_context)
+    verdict_raw = await _run_persona(provider, SYNTHESIZER_PROMPT, full_context)
     final_verdict = FinalVerdict.model_validate(verdict_raw)
 
     await _store.update(

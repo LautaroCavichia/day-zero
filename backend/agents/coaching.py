@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 
-from config import settings
-from core.gemini_client import generate_json, get_client
+from backend.config import settings
+from backend.core.llm_factory import get_provider
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +62,10 @@ async def get_coaching_tip(
     transcript_text = "\n".join(f"Founder: {t}" for t in founder_turns)
 
     try:
-        client = get_client(api_key)
-        raw = await generate_json(
-            client=client,
-            model=settings.gemini_flash_model,
-            user_content=f"{_COACHING_PROMPT}\n\n---\nTRANSCRIPT (recent founder turns):\n{transcript_text}\n---",
+        provider = get_provider(api_key)
+        raw = await provider.generate_json(
+            model=settings.selected_flash_model,
+            user_message=f"{_COACHING_PROMPT}\n\n---\nTRANSCRIPT (recent founder turns):\n{transcript_text}\n---",
         )
         tip = raw.get("tip")
         logger.debug("Coaching tip: category=%s tip=%s", raw.get("category"), tip)

@@ -20,20 +20,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
-from google.adk.sessions import InMemorySessionService
 
 # Ensure backend/ is on sys.path for all tests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from session_state import SessionStore
+from backend.session_state import SessionStore, _MemoryBackend
 
 # ── Store fixtures ─────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
 async def fresh_store() -> SessionStore:
-    """Return a completely isolated SessionStore backed by a new in-memory service."""
-    return SessionStore(service=InMemorySessionService())
+    """Return a completely isolated SessionStore backed by a new in-memory backend."""
+    return SessionStore(backend=_MemoryBackend())
 
 
 @pytest_asyncio.fixture

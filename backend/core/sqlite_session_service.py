@@ -39,7 +39,7 @@ from typing import Any
 
 import aiosqlite
 
-from core.errors import SessionNotFoundError
+from backend.core.errors import SessionNotFoundError
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from core.formatters import format_pitch_context, format_pitch_context_for_research
+from backend.core.formatters import format_pitch_context, format_pitch_context_for_research
 
 FULL_CONTEXT = {
     "company_name": "Acme AI",

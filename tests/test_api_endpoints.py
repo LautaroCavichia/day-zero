@@ -30,10 +30,10 @@ def app_with_key():
     with patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key-integration"}):
         import importlib
 
-        import config as cfg
+        import backend.config as cfg
 
         importlib.reload(cfg)
-        import main as main_mod
+        import backend.main as main_mod
 
         importlib.reload(main_mod)
         yield main_mod.app
@@ -177,13 +177,12 @@ def test_submit_pitch_success(client):
     create_resp = client.post("/api/session")
     sid = create_resp.json()["session_id"]
 
-    mock_resp = MagicMock()
-    mock_resp.text = json.dumps(MOCK_PITCH_CONTEXT)
+    mock_response = MOCK_PITCH_CONTEXT
 
-    with patch("core.gemini_client.genai.Client") as MockClient:
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(return_value=mock_resp)
-        MockClient.return_value = mock_instance
+    with patch("backend.core.llm_factory.get_provider") as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_json = AsyncMock(return_value=mock_response)
+        mock_get_provider.return_value = mock_provider
 
         resp = client.post(
             f"/api/pitch?session_id={sid}",
@@ -275,7 +274,7 @@ def test_trigger_market_validation_started(client):
     # Populate pitch_context first
     mock_resp = MagicMock()
     mock_resp.text = json.dumps(MOCK_PITCH_CONTEXT)
-    with patch("core.gemini_client.genai.Client") as MockClient:
+    with patch("backend.core.gemini_client.genai.Client") as MockClient:
         mock_instance = MagicMock()
         mock_instance.aio.models.generate_content = AsyncMock(return_value=mock_resp)
         MockClient.return_value = mock_instance
@@ -284,7 +283,7 @@ def test_trigger_market_validation_started(client):
         )
 
     # Now trigger market validation (background — just check it starts)
-    with patch("agents.market_validator.validate_market", new=AsyncMock()):
+    with patch("backend.agents.market_validator.validate_market", new=AsyncMock()):
         resp = client.post(f"/api/validate-market?session_id={sid}")
 
     assert resp.status_code == 200
@@ -316,7 +315,7 @@ def test_trigger_deliberation_started(client):
     # Populate pitch first
     mock_resp = MagicMock()
     mock_resp.text = json.dumps(MOCK_PITCH_CONTEXT)
-    with patch("core.gemini_client.genai.Client") as MockClient:
+    with patch("backend.core.gemini_client.genai.Client") as MockClient:
         mock_instance = MagicMock()
         mock_instance.aio.models.generate_content = AsyncMock(return_value=mock_resp)
         MockClient.return_value = mock_instance
@@ -324,7 +323,7 @@ def test_trigger_deliberation_started(client):
             f"/api/pitch?session_id={sid}", json={"pitch_text": "AI email product for workers."}
         )
 
-    with patch("agents.deliberation.run_deliberation", new=AsyncMock()):
+    with patch("backend.agents.deliberation.run_deliberation", new=AsyncMock()):
         resp = client.post(f"/api/deliberate?session_id={sid}")
 
     assert resp.status_code == 200

@@ -11,12 +11,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from google.adk.sessions import InMemorySessionService
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from core.errors import SessionNotFoundError, SessionStateError
-from session_state import SessionStore
+from backend.core.errors import SessionNotFoundError, SessionStateError
+from backend.session_state import SessionStore, _MemoryBackend
 
 POPULATED_PITCH = {
     "company_name": "Acme AI",
@@ -77,7 +76,7 @@ VERDICT = {
 
 @pytest_asyncio.fixture
 async def store_with_pitch():
-    store = SessionStore(service=InMemorySessionService())
+    store = SessionStore(backend=_MemoryBackend())
     sid = await store.create()
     await store.update(sid, {"pitch_context": POPULATED_PITCH})
     return store, sid
@@ -91,25 +90,25 @@ async def test_run_deliberation_returns_verdict(store_with_pitch):
     call_count = 0
     responses = [SKEPTIC, OPTIMIST, OPERATOR] * 3 + [VERDICT]
 
-    async def mock_generate(*args, **kwargs):
+    # Create an async mock that returns actual dicts (JSON-serializable)
+    async def mock_generate_json(*args, **kwargs):
         nonlocal call_count
-        resp = MagicMock()
-        resp.text = json.dumps(responses[call_count % len(responses)])
+        resp = responses[call_count % len(responses)]
         call_count += 1
         return resp
 
-    with patch("core.gemini_client.genai.Client") as MockClient:
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(side_effect=mock_generate)
-        MockClient.return_value = mock_instance
+    with patch("backend.core.llm_factory.get_provider") as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_json = mock_generate_json
+        mock_get_provider.return_value = mock_provider
 
-        with patch("agents.deliberation.settings") as mock_settings:
+        with patch("backend.agents.deliberation.settings") as mock_settings:
             mock_settings.debate_rounds = 3
             mock_settings.debate_context_transcript_turns = 20
             mock_settings.debate_context_dialogue_chars = 300
-            mock_settings.gemini_flash_model = "gemini-2.5-flash"
+            mock_settings.selected_flash_model = "gemini-2.5-flash"
 
-            from agents.deliberation import run_deliberation
+            from backend.agents.deliberation import run_deliberation
 
             verdict = await run_deliberation(sid, api_key="test-key", store=store)
 
@@ -123,25 +122,24 @@ async def test_run_deliberation_writes_rounds_incrementally(store_with_pitch):
     responses = [SKEPTIC, OPTIMIST, OPERATOR] * 3 + [VERDICT]
     call_count = 0
 
-    async def mock_generate(*args, **kwargs):
+    async def mock_generate_json(*args, **kwargs):
         nonlocal call_count
-        resp = MagicMock()
-        resp.text = json.dumps(responses[call_count % len(responses)])
+        resp = responses[call_count % len(responses)]
         call_count += 1
         return resp
 
-    with patch("core.gemini_client.genai.Client") as MockClient:
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(side_effect=mock_generate)
-        MockClient.return_value = mock_instance
+    with patch("backend.core.llm_factory.get_provider") as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_json = mock_generate_json
+        mock_get_provider.return_value = mock_provider
 
-        with patch("agents.deliberation.settings") as mock_settings:
+        with patch("backend.agents.deliberation.settings") as mock_settings:
             mock_settings.debate_rounds = 3
             mock_settings.debate_context_transcript_turns = 20
             mock_settings.debate_context_dialogue_chars = 300
-            mock_settings.gemini_flash_model = "gemini-2.5-flash"
+            mock_settings.selected_flash_model = "gemini-2.5-flash"
 
-            from agents.deliberation import run_deliberation
+            from backend.agents.deliberation import run_deliberation
 
             await run_deliberation(sid, api_key="test-key", store=store)
 
@@ -157,25 +155,24 @@ async def test_run_deliberation_writes_final_verdict(store_with_pitch):
     responses = [SKEPTIC, OPTIMIST, OPERATOR] * 3 + [VERDICT]
     call_count = 0
 
-    async def mock_generate(*args, **kwargs):
+    async def mock_generate_json(*args, **kwargs):
         nonlocal call_count
-        resp = MagicMock()
-        resp.text = json.dumps(responses[call_count % len(responses)])
+        resp = responses[call_count % len(responses)]
         call_count += 1
         return resp
 
-    with patch("core.gemini_client.genai.Client") as MockClient:
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(side_effect=mock_generate)
-        MockClient.return_value = mock_instance
+    with patch("backend.core.llm_factory.get_provider") as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_json = mock_generate_json
+        mock_get_provider.return_value = mock_provider
 
-        with patch("agents.deliberation.settings") as mock_settings:
+        with patch("backend.agents.deliberation.settings") as mock_settings:
             mock_settings.debate_rounds = 3
             mock_settings.debate_context_transcript_turns = 20
             mock_settings.debate_context_dialogue_chars = 300
-            mock_settings.gemini_flash_model = "gemini-2.5-flash"
+            mock_settings.selected_flash_model = "gemini-2.5-flash"
 
-            from agents.deliberation import run_deliberation
+            from backend.agents.deliberation import run_deliberation
 
             await run_deliberation(sid, api_key="test-key", store=store)
 
@@ -187,9 +184,9 @@ async def test_run_deliberation_writes_final_verdict(store_with_pitch):
 
 @pytest.mark.asyncio
 async def test_run_deliberation_missing_session_raises():
-    store = SessionStore(service=InMemorySessionService())
+    store = SessionStore(backend=_MemoryBackend())
 
-    from agents.deliberation import run_deliberation
+    from backend.agents.deliberation import run_deliberation
 
     with pytest.raises(SessionNotFoundError):
         await run_deliberation("nonexistent", api_key="test-key", store=store)
@@ -197,10 +194,10 @@ async def test_run_deliberation_missing_session_raises():
 
 @pytest.mark.asyncio
 async def test_run_deliberation_empty_pitch_raises():
-    store = SessionStore(service=InMemorySessionService())
+    store = SessionStore(backend=_MemoryBackend())
     sid = await store.create()  # pitch_context is empty
 
-    from agents.deliberation import run_deliberation
+    from backend.agents.deliberation import run_deliberation
 
     with pytest.raises(SessionStateError):
         await run_deliberation(sid, api_key="test-key", store=store)
@@ -208,7 +205,7 @@ async def test_run_deliberation_empty_pitch_raises():
 
 def test_build_debate_context_with_full_state():
     """_build_debate_context returns a non-empty string for a populated state."""
-    from agents.deliberation import _build_debate_context
+    from backend.agents.deliberation import _build_debate_context
 
     state = {
         "pitch_context": POPULATED_PITCH,
@@ -239,7 +236,7 @@ def test_build_debate_context_with_full_state():
 
 
 def test_build_debate_context_empty_state():
-    from agents.deliberation import _build_debate_context
+    from backend.agents.deliberation import _build_debate_context
 
     context = _build_debate_context({})
     assert context == ""

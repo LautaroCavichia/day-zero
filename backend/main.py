@@ -28,15 +28,15 @@ load_dotenv()
 
 # ── All imports below are intentionally after load_dotenv() ──────────────
 # ruff: noqa: E402
-import session_state as ss  # noqa: E402
-from agents.coaching import get_coaching_tip  # noqa: E402
-from agents.deck_analyst import analyze_deck  # noqa: E402
-from agents.deliberation import run_deliberation  # noqa: E402
-from agents.live_interview import run_live_interview  # noqa: E402
-from agents.market_validator import validate_market  # noqa: E402
-from agents.orchestrator import process_pitch  # noqa: E402
-from config import settings  # noqa: E402
-from core.errors import (  # noqa: E402
+from backend import session_state as ss  # noqa: E402
+from backend.agents.coaching import get_coaching_tip  # noqa: E402
+from backend.agents.deck_analyst import analyze_deck  # noqa: E402
+from backend.agents.deliberation import run_deliberation  # noqa: E402
+from backend.agents.live_interview import run_live_interview  # noqa: E402
+from backend.agents.market_validator import validate_market  # noqa: E402
+from backend.agents.orchestrator import process_pitch  # noqa: E402
+from backend.config import settings  # noqa: E402
+from backend.core.errors import (  # noqa: E402
     AgentError,
     ConfigError,
     DayZeroError,
@@ -46,9 +46,9 @@ from core.errors import (  # noqa: E402
     PitchContextEmptyError,
     SessionNotFoundError,
 )
-from core.logging_config import configure_logging  # noqa: E402
-from core.middleware import RequestIdMiddleware  # noqa: E402
-from core.models import (  # noqa: E402
+from backend.core.logging_config import configure_logging  # noqa: E402
+from backend.core.middleware import RequestIdMiddleware  # noqa: E402
+from backend.core.models import (  # noqa: E402
     ErrorResponse,
     PitchTextRequest,
     SessionResponse,
@@ -585,7 +585,20 @@ if os.path.isdir(_frontend_dir):
 @app.get("/health", tags=["System"])
 async def health():
     """Liveness probe — cheap, always fast. Returns 200 if the process is alive."""
-    return {"status": "ok", "version": "0.2.0"}
+    return {
+        "status": "ok",
+        "version": "0.2.0",
+        "api_key_set": settings.api_key_set,
+        "features": {
+            "deck_analysis": settings.enable_deck_analysis,
+            "market_validation": settings.enable_market_validation,
+            "live_interview": settings.enable_live_interview,
+        },
+        "config": {
+            "llm_provider": settings.llm_provider.value,
+            "session_backend": settings.session_backend,
+        },
+    }
 
 
 @app.get("/health/ready", tags=["System"])
@@ -605,57 +618,62 @@ async def health_ready():
     checks: dict[str, dict] = {}
     overall_ok = True
 
-    # ── Check 1: session store ─────────────────────────────────────────────
-    t0 = time.monotonic()
     try:
-        probe_id = await ss.default_store.create()
-        await ss.default_store.delete(probe_id)
-        checks["session_store"] = {
-            "status": "ok",
-            "latency_ms": round((time.monotonic() - t0) * 1000, 1),
-        }
-    except Exception as exc:
-        checks["session_store"] = {
-            "status": "error",
-            "error": str(exc),
-            "latency_ms": round((time.monotonic() - t0) * 1000, 1),
-        }
-        overall_ok = False
-
-    # ── Check 2: Gemini connectivity ───────────────────────────────────────
-    if settings.readiness_gemini_check and settings.api_key_set:
+        # ── Check 1: session store ─────────────────────────────────────────
         t0 = time.monotonic()
         try:
-            from core.gemini_client import get_client
-            from google.genai import types as _gtypes
-
-            client = get_client()
-            await client.aio.models.count_tokens(
-                model=settings.gemini_flash_model,
-                contents=[_gtypes.Content(role="user", parts=[_gtypes.Part(text="ping")])],
-            )
-            checks["gemini"] = {
+            probe_id = await ss.default_store.create()
+            await ss.default_store.delete(probe_id)
+            checks["session_store"] = {
                 "status": "ok",
-                "model": settings.gemini_flash_model,
                 "latency_ms": round((time.monotonic() - t0) * 1000, 1),
             }
         except Exception as exc:
-            checks["gemini"] = {
+            checks["session_store"] = {
                 "status": "error",
                 "error": str(exc),
                 "latency_ms": round((time.monotonic() - t0) * 1000, 1),
             }
             overall_ok = False
-    elif not settings.api_key_set:
-        checks["gemini"] = {"status": "skipped", "reason": "GOOGLE_API_KEY not set"}
-    else:
-        checks["gemini"] = {"status": "skipped", "reason": "READINESS_GEMINI_CHECK=false"}
 
-    # ── Session store stats ────────────────────────────────────────────────
-    try:
-        checks["session_store"]["active_sessions"] = await ss.default_store.session_count()
-    except Exception:
-        pass
+        # ── Check 2: Gemini connectivity ───────────────────────────────────
+        if settings.readiness_gemini_check and settings.api_key_set:
+            t0 = time.monotonic()
+            try:
+                from backend.core.gemini_client import get_client
+                from google.genai import types as _gtypes
+
+                client = get_client()
+                await client.aio.models.count_tokens(
+                    model=settings.gemini_flash_model,
+                    contents=[_gtypes.Content(role="user", parts=[_gtypes.Part(text="ping")])],
+                )
+                checks["gemini"] = {
+                    "status": "ok",
+                    "model": settings.gemini_flash_model,
+                    "latency_ms": round((time.monotonic() - t0) * 1000, 1),
+                }
+            except Exception as exc:
+                checks["gemini"] = {
+                    "status": "error",
+                    "error": str(exc),
+                    "latency_ms": round((time.monotonic() - t0) * 1000, 1),
+                }
+                overall_ok = False
+        elif not settings.api_key_set:
+            checks["gemini"] = {"status": "skipped", "reason": "GOOGLE_API_KEY not set"}
+        else:
+            checks["gemini"] = {"status": "skipped", "reason": "READINESS_GEMINI_CHECK=false"}
+
+        # ── Session store stats ────────────────────────────────────────────
+        try:
+            checks["session_store"]["active_sessions"] = await ss.default_store.session_count()
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.error(f"Unexpected error in health_ready: {e}", exc_info=True)
+        overall_ok = False
 
     body = {
         "status": "ok" if overall_ok else "degraded",
@@ -668,9 +686,10 @@ async def health_ready():
             "market_validation": settings.enable_market_validation,
         },
         "config": {
+            "llm_provider": settings.llm_provider.value,
+            "selected_flash_model": settings.selected_flash_model,
+            "selected_live_model": settings.selected_live_model,
             "debate_rounds": settings.debate_rounds,
-            "gemini_flash_model": settings.gemini_flash_model,
-            "gemini_live_model": settings.gemini_live_model,
             "max_upload_mb": settings.max_upload_bytes // (1024 * 1024),
         },
         "checks": checks,

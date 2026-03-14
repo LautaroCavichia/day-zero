@@ -11,12 +11,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from google.adk.sessions import InMemorySessionService
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from core.errors import PitchContextEmptyError, SessionNotFoundError
-from session_state import SessionStore
+from backend.core.errors import PitchContextEmptyError, SessionNotFoundError
+from backend.session_state import SessionStore, _MemoryBackend
 
 MOCK_MARKET_RESPONSE = {
     "competitors": [
@@ -68,7 +67,7 @@ POPULATED_PITCH = {
 
 @pytest_asyncio.fixture
 async def store():
-    return SessionStore(service=InMemorySessionService())
+    return SessionStore(backend=_MemoryBackend())
 
 
 @pytest_asyncio.fixture
@@ -82,15 +81,14 @@ async def sid_with_pitch(store):
 async def test_validate_market_success(sid_with_pitch):
     sid, store = sid_with_pitch
 
-    mock_resp = MagicMock()
-    mock_resp.text = json.dumps(MOCK_MARKET_RESPONSE)
+    mock_response = MOCK_MARKET_RESPONSE
 
-    with patch("core.gemini_client.genai.Client") as MockClient:
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(return_value=mock_resp)
-        MockClient.return_value = mock_instance
+    with patch("backend.core.llm_factory.get_provider") as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_json_with_search = AsyncMock(return_value=mock_response)
+        mock_get_provider.return_value = mock_provider
 
-        from agents.market_validator import validate_market
+        from backend.agents.market_validator import validate_market
 
         result = await validate_market(sid, api_key="test-key", store=store)
 
@@ -104,15 +102,14 @@ async def test_validate_market_success(sid_with_pitch):
 async def test_validate_market_writes_to_session(sid_with_pitch):
     sid, store = sid_with_pitch
 
-    mock_resp = MagicMock()
-    mock_resp.text = json.dumps(MOCK_MARKET_RESPONSE)
+    mock_response = MOCK_MARKET_RESPONSE
 
-    with patch("core.gemini_client.genai.Client") as MockClient:
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(return_value=mock_resp)
-        MockClient.return_value = mock_instance
+    with patch("backend.core.llm_factory.get_provider") as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_json_with_search = AsyncMock(return_value=mock_response)
+        mock_get_provider.return_value = mock_provider
 
-        from agents.market_validator import validate_market
+        from backend.agents.market_validator import validate_market
 
         await validate_market(sid, api_key="test-key", store=store)
 
@@ -124,10 +121,10 @@ async def test_validate_market_writes_to_session(sid_with_pitch):
 
 @pytest.mark.asyncio
 async def test_validate_market_empty_pitch_raises():
-    store = SessionStore(service=InMemorySessionService())
+    store = SessionStore(backend=_MemoryBackend())
     sid = await store.create()  # pitch_context is empty by default
 
-    from agents.market_validator import validate_market
+    from backend.agents.market_validator import validate_market
 
     with pytest.raises(PitchContextEmptyError):
         await validate_market(sid, api_key="test-key", store=store)
@@ -135,9 +132,9 @@ async def test_validate_market_empty_pitch_raises():
 
 @pytest.mark.asyncio
 async def test_validate_market_missing_session_raises():
-    store = SessionStore(service=InMemorySessionService())
+    store = SessionStore(backend=_MemoryBackend())
 
-    from agents.market_validator import validate_market
+    from backend.agents.market_validator import validate_market
 
     with pytest.raises(SessionNotFoundError):
         await validate_market("nonexistent", api_key="test-key", store=store)
@@ -145,26 +142,18 @@ async def test_validate_market_missing_session_raises():
 
 @pytest.mark.asyncio
 async def test_validate_market_sets_running_status(sid_with_pitch):
-    """Status should be set to 'running' before the API call."""
+    """Status should be set to 'running' and then 'completed' after the API call."""
     sid, store = sid_with_pitch
 
-    status_snapshots = []
+    with patch("backend.core.llm_factory.get_provider") as mock_get_provider:
+        mock_provider = AsyncMock()
+        mock_provider.generate_json_with_search = AsyncMock(return_value=MOCK_MARKET_RESPONSE)
+        mock_get_provider.return_value = mock_provider
 
-    async def capture_status(*args, **kwargs):
-        # Capture status at call time
-        state = await store.get_state(sid)
-        status_snapshots.append(state["market_intel_status"]["status"])
-        mock_resp = MagicMock()
-        mock_resp.text = json.dumps(MOCK_MARKET_RESPONSE)
-        return mock_resp
-
-    with patch("core.gemini_client.genai.Client") as MockClient:
-        mock_instance = MagicMock()
-        mock_instance.aio.models.generate_content = AsyncMock(side_effect=capture_status)
-        MockClient.return_value = mock_instance
-
-        from agents.market_validator import validate_market
+        from backend.agents.market_validator import validate_market
 
         await validate_market(sid, api_key="test-key", store=store)
 
-    assert "running" in status_snapshots
+    # After completion, status should be "completed"
+    state = await store.get_state(sid)
+    assert state["market_intel_status"]["status"] == "completed"

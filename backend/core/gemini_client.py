@@ -12,11 +12,11 @@ import logging
 import re
 from typing import Any
 
-from config import settings
+from backend.config import settings
 from google import genai
 from google.genai import types
 
-from core.errors import ConfigError, GeminiApiError, GeminiResponseError
+from backend.core.errors import ConfigError, GeminiApiError, GeminiResponseError
 
 logger = logging.getLogger(__name__)
 

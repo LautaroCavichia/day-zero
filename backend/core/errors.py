@@ -90,6 +90,45 @@ class GeminiApiError(AgentError):
         self.retry_after = retry_after
 
 
+# ── Provider-agnostic LLM errors ──────────────────────────────────────────
+
+
+class LLMProviderError(AgentError):
+    """
+    Raised when any LLM provider returns an API-level error.
+
+    Provider-specific errors (GeminiApiError, etc.) are subclasses of this
+    so callers can catch all provider errors with a single except clause.
+
+    Attributes:
+        status_code: HTTP status code (0 if unavailable).
+        provider:    Provider name string ("google", "mistral", "openai", …).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int = 0,
+        provider: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.provider = provider
+
+
+class RateLimitError(LLMProviderError):
+    """Raised when the provider returns HTTP 429 (rate limit / quota exhausted)."""
+
+
+class LLMResponseError(AgentError):
+    """Raised when the provider returns a response that cannot be parsed as JSON."""
+
+    def __init__(self, message: str, *, raw_response: str | None = None) -> None:
+        super().__init__(message)
+        self.raw_response = raw_response
+
+
 # ── Input validation errors ────────────────────────────────────────────────
 
 

@@ -9,17 +9,16 @@ import sys
 
 import pytest
 import pytest_asyncio
-from google.adk.sessions import InMemorySessionService
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from core.errors import SessionNotFoundError
-from session_state import SessionStore, make_empty_state
+from backend.core.errors import SessionNotFoundError
+from backend.session_state import SessionStore, make_empty_state, _MemoryBackend
 
 
 @pytest_asyncio.fixture
 async def store():
-    return SessionStore(service=InMemorySessionService())
+    return SessionStore(backend=_MemoryBackend())
 
 
 @pytest_asyncio.fixture

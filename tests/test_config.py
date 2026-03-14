@@ -49,11 +49,32 @@ def test_api_key_set_property():
 
     import config as cfg
 
-    s = cfg.Settings(google_api_key="")
+    # Test with all API keys empty
+    s = cfg.Settings(
+        llm_provider=cfg.LLMProviderEnum.GOOGLE,
+        google_api_key="",
+        mistral_api_key="",
+        openai_api_key="",
+    )
     assert s.api_key_set is False
 
-    s2 = cfg.Settings(google_api_key="abc123")
+    # Test with Google key set and provider=google
+    s2 = cfg.Settings(
+        llm_provider=cfg.LLMProviderEnum.GOOGLE,
+        google_api_key="abc123",
+        mistral_api_key="",
+        openai_api_key="",
+    )
     assert s2.api_key_set is True
+
+    # Test with Mistral key set and provider=mistral
+    s3 = cfg.Settings(
+        llm_provider=cfg.LLMProviderEnum.MISTRAL,
+        google_api_key="",
+        mistral_api_key="abc123",
+        openai_api_key="",
+    )
+    assert s3.api_key_set is True
 
 
 def test_env_override():
@@ -77,7 +98,8 @@ def test_feature_flags_default_on():
 
     import config as cfg
 
-    s = cfg.Settings()
+    # Create settings without env file to get actual defaults
+    s = cfg.Settings(_env_file=None)
     assert s.enable_deck_analysis is True
     assert s.enable_market_validation is True
     assert s.enable_live_interview is True

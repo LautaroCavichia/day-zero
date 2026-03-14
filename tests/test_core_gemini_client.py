@@ -12,8 +12,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from core.errors import ConfigError, GeminiResponseError
-from core.gemini_client import (
+from backend.core.errors import ConfigError, GeminiResponseError
+from backend.core.gemini_client import (
     generate_json,
     generate_json_multimodal,
     generate_json_with_search,
@@ -66,21 +66,21 @@ def test_parse_json_empty_raises():
 
 
 def test_get_client_with_explicit_key():
-    with patch("core.gemini_client.genai.Client") as mock_client:
+    with patch("backend.core.gemini_client.genai.Client") as mock_client:
         get_client("explicit-key")
         mock_client.assert_called_once_with(api_key="explicit-key")
 
 
 def test_get_client_falls_back_to_settings():
-    with patch("core.gemini_client.settings") as mock_settings:
+    with patch("backend.core.gemini_client.settings") as mock_settings:
         mock_settings.google_api_key = "settings-key"
-        with patch("core.gemini_client.genai.Client") as mock_client:
+        with patch("backend.core.gemini_client.genai.Client") as mock_client:
             get_client()
             mock_client.assert_called_once_with(api_key="settings-key")
 
 
 def test_get_client_raises_when_no_key():
-    with patch("core.gemini_client.settings") as mock_settings:
+    with patch("backend.core.gemini_client.settings") as mock_settings:
         mock_settings.google_api_key = ""
         with pytest.raises(ConfigError):
             get_client()

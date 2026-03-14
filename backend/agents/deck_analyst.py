@@ -13,12 +13,12 @@ import io
 import logging
 from pathlib import Path
 
-import session_state as ss
-from config import settings
-from core.errors import AgentError
-from core.gemini_client import generate_json_multimodal, get_client
-from core.models import DeckCritique
-from google.genai import types
+import backend.session_state as ss
+from backend.config import settings
+from backend.core.errors import AgentError
+from backend.core.llm_factory import get_provider
+from backend.core.llm_types import ImagePart, MultimodalMessage
+from backend.core.models import DeckCritique
 
 logger = logging.getLogger(__name__)
 
@@ -85,20 +85,19 @@ async def analyze_deck(
 
     logger.info("DeckAnalyst: extracted %d slides from %s", len(images), filename)
 
-    client = get_client(api_key)
-
     # Convert all images to PNG bytes first so we can reuse them
     slide_png_bytes: list[bytes] = [_pil_to_bytes(img) for img in images]
 
-    parts: list[types.Part] = [types.Part(text=DECK_ANALYST_PROMPT)]
-    for i, img_bytes in enumerate(slide_png_bytes):
-        parts.append(types.Part(inline_data=types.Blob(data=img_bytes, mime_type="image/png")))
-        logger.debug("DeckAnalyst: added slide %d/%d", i + 1, len(slide_png_bytes))
+    provider = get_provider(api_key)
+    msg = MultimodalMessage(
+        role="user",
+        text=DECK_ANALYST_PROMPT,
+        images=[ImagePart(mime_type="image/png", data=b) for b in slide_png_bytes],
+    )
 
-    raw = await generate_json_multimodal(
-        client=client,
-        model=settings.gemini_flash_model,
-        parts=parts,
+    raw = await provider.generate_json_multimodal(
+        model=settings.selected_flash_model,
+        messages=[msg],
     )
 
     # Always stamp the actual slide count (don't trust the model)

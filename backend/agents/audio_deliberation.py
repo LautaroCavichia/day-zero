@@ -29,10 +29,10 @@ import asyncio
 import json
 import logging
 
-import session_state as ss
-from agents.deliberation import run_deliberation
-from config import settings
-from core.formatters import format_pitch_context
+import backend.session_state as ss
+from backend.agents.deliberation import run_deliberation
+from backend.config import settings
+from backend.core.formatters import format_pitch_context
 from fastapi import WebSocket, WebSocketDisconnect
 from google import genai
 from google.genai import types

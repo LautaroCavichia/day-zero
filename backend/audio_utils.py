@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import struct
 
-from config import settings
+from backend.config import settings
 
 
 def pcm16_to_bytes(samples: list[int]) -> bytes:

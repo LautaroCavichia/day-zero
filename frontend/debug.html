@@ -444,7 +444,7 @@
   // ─────────────────────────────────────────────────────────────────────────
   async function checkHealth() {
     try {
-      const r = await fetch(`${API}/health`);
+      const r = await fetch(`${API}/health/ready`);
       const d = await r.json();
       document.getElementById('server-status-label').textContent = 'Server: online';
       document.getElementById('health-detail').innerHTML =
@@ -454,7 +454,8 @@
       const bar = document.getElementById('health-bar');
       bar.innerHTML = `
         <span class="badge ${d.api_key_set ? 'badge-green' : 'badge-red'}">API Key ${d.api_key_set ? 'OK' : 'MISSING'}</span>
-        <span class="badge badge-blue">model: ${d.config.gemini_flash_model}</span>
+        <span class="badge badge-blue">provider: ${d.config.llm_provider}</span>
+        <span class="badge badge-blue">model: ${d.config.selected_flash_model}</span>
         <span class="badge badge-blue">rounds: ${d.config.debate_rounds}</span>
       `;
       log(`Health OK — v${d.version}, api_key=${d.api_key_set}`, 'ok');

@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from config import settings
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class _MemoryBackend:
         return dict(data) if data is not None else None
 
     async def require_state(self, session_id: str) -> dict[str, Any]:
-        from core.errors import SessionNotFoundError
+        from backend.core.errors import SessionNotFoundError
 
         state = await self.get_state(session_id)
         if state is None:
@@ -97,7 +97,7 @@ class _MemoryBackend:
         return state
 
     async def update(self, session_id: str, updates: dict[str, Any]) -> None:
-        from core.errors import SessionNotFoundError
+        from backend.core.errors import SessionNotFoundError
 
         if session_id not in self._store:
             raise SessionNotFoundError(session_id)
@@ -237,7 +237,7 @@ def _build_default_backend():
     if settings.session_backend == "sqlite":
         import os
 
-        from core.sqlite_session_service import SqliteSessionStore
+        from backend.core.sqlite_session_service import SqliteSessionStore
 
         db_path = settings.session_db_path
         # Ensure the parent directory exists
