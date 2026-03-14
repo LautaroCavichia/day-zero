@@ -20,8 +20,7 @@
  */
 
 import { initPlayback, playChunk, resetPlayback } from './audio.js';
-
-const API_BASE = window.location.origin;
+import { showToast, showError } from './ui.js';
 
 let _socket = null;
 let _callbacks = {};
@@ -55,32 +54,35 @@ export async function startAudioDeliberation(sessionId, callbacks = {}) {
     }
   };
 
-  _socket.onerror = (err) => {
-    console.error('AudioDeliberation WS error', err);
-    _callbacks.onError?.('WebSocket error');
-    _teardown();
+  _socket.onerror = () => {
+    // Let onclose handle the UX; onerror always precedes onclose
   };
 
-  _socket.onclose = () => {
+  _socket.onclose = (event) => {
+    // If onclose fires without deliberation_complete having been received,
+    // it's an unexpected drop — surface it unless we closed intentionally.
+    if (_socket !== null) {
+      // _socket is cleared in _teardown; if still set this is unexpected
+      showToast('Deliberation connection closed unexpectedly.', 'warn');
+      _callbacks.onError?.('Connection closed unexpectedly.');
+    }
     _teardown();
   };
 }
 
 export function stopAudioDeliberation() {
-  if (_socket && _socket.readyState === WebSocket.OPEN) {
-    _socket.close();
-  }
   _teardown();
 }
 
 function _teardown() {
   resetPlayback();
   if (_socket) {
-    _socket.onclose = null;
-    if (_socket.readyState === WebSocket.OPEN || _socket.readyState === WebSocket.CONNECTING) {
-      _socket.close();
+    const s = _socket;
+    _socket = null; // clear before close so onclose knows it was intentional
+    s.onclose = null;
+    if (s.readyState === WebSocket.OPEN || s.readyState === WebSocket.CONNECTING) {
+      s.close();
     }
-    _socket = null;
   }
 }
 
@@ -100,13 +102,18 @@ function _handleEvent(msg) {
       break;
     case 'persona_error':
       console.warn('PersonaError:', msg.persona, msg.message);
-      _callbacks.onStatus?.(`⚠ ${msg.persona} encountered an issue — continuing...`);
+      showToast(`${msg.persona} encountered an issue — continuing...`, 'warn');
+      _callbacks.onStatus?.(`${msg.persona} encountered an issue — continuing...`);
       break;
     case 'deliberation_complete':
       _callbacks.onComplete?.();
       _teardown();
       break;
+    case 'ping':
+      // Server heartbeat — no response needed for server-initiated pings
+      break;
     case 'error':
+      showError(`Deliberation error: ${msg.message}`);
       _callbacks.onError?.(msg.message);
       _teardown();
       break;

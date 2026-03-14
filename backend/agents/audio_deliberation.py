@@ -28,10 +28,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 
 import session_state as ss
-from agents.deliberation import run_deliberation, _build_debate_context
+from agents.deliberation import run_deliberation
 from config import settings
 from core.formatters import format_pitch_context
 from fastapi import WebSocket, WebSocketDisconnect
@@ -153,6 +152,9 @@ async def run_audio_deliberation(
 
     key = api_key or settings.google_api_key
 
+    # Start heartbeat to keep connection alive during long deliberation
+    heartbeat_task = asyncio.create_task(_heartbeat_loop(websocket, session_id))
+
     try:
         # Step 1: Check if deliberation already ran (text pipeline).
         # If not, run it now (blocking — we need the data to voice it).
@@ -253,11 +255,30 @@ async def run_audio_deliberation(
         except Exception:
             pass
     finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
         try:
             await websocket.close()
         except Exception:
             pass
         logger.info("AudioDeliberation WS closed: session=%s", session_id)
+
+
+async def _heartbeat_loop(websocket: WebSocket, session_id: str) -> None:
+    """Send periodic ping frames to keep the WebSocket alive."""
+    interval = settings.ws_heartbeat_interval_seconds
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            await websocket.send_text(json.dumps({"type": "ping"}))
+            logger.debug("AudioDeliberation heartbeat sent: session=%s", session_id)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
 
 
 async def _speak_persona(
@@ -304,8 +325,8 @@ async def _speak_persona(
         async with client.aio.live.connect(
             model=settings.gemini_live_model, config=live_config
         ) as gemini_session:
-            # Send the prompt as the user turn to kick off speech
-            await gemini_session.send_realtime_input(text=f"Please speak your analysis now.")
+            # Kick off speech with a brief user turn, then signal end of input
+            await gemini_session.send_realtime_input(text="Begin.")
             await gemini_session.send_realtime_input(audio_stream_end=True)
 
             async for response in gemini_session.receive():

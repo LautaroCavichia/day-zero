@@ -43,7 +43,7 @@ def get_client(api_key: str | None = None) -> genai.Client:
 # ── Gemini API error translation ───────────────────────────────────────────
 
 
-def _translate_gemini_error(exc: Exception) -> GeminiApiError:
+def translate_gemini_error(exc: Exception) -> GeminiApiError:
     """
     Convert a ``google.genai.errors.ClientError`` or ``ServerError`` into a
     ``GeminiApiError`` with a human-readable message and structured metadata.
@@ -185,7 +185,7 @@ async def generate_json(
             config=types.GenerateContentConfig(**config_kwargs),
         )
     except (genai.errors.ClientError, genai.errors.ServerError) as exc:
-        raise _translate_gemini_error(exc) from exc
+        raise translate_gemini_error(exc) from exc
 
     raw = response.text or ""
     return parse_json_response(raw)
@@ -227,7 +227,7 @@ async def generate_json_with_search(
             config=types.GenerateContentConfig(**config_kwargs),
         )
     except (genai.errors.ClientError, genai.errors.ServerError) as exc:
-        raise _translate_gemini_error(exc) from exc
+        raise translate_gemini_error(exc) from exc
 
     raw = response.text or ""
     if not raw.strip():
@@ -271,7 +271,7 @@ async def generate_json_multimodal(
             ),
         )
     except (genai.errors.ClientError, genai.errors.ServerError) as exc:
-        raise _translate_gemini_error(exc) from exc
+        raise translate_gemini_error(exc) from exc
 
     raw = response.text or ""
     return parse_json_response(raw)

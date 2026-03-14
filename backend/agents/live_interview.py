@@ -28,7 +28,7 @@ import session_state as ss
 from audio_utils import LIVE_API_INPUT_SAMPLE_RATE
 from config import settings
 from core.formatters import format_pitch_context
-from core.gemini_client import generate_json, get_client, _translate_gemini_error
+from core.gemini_client import generate_json, get_client, translate_gemini_error
 from core.models import PitchContext
 from fastapi import WebSocket, WebSocketDisconnect
 from google import genai
@@ -129,9 +129,10 @@ async def run_live_interview(
             recv_task = asyncio.create_task(
                 _receive_loop(websocket, gemini_session, session_id, _store)
             )
+            heartbeat_task = asyncio.create_task(_heartbeat_loop(websocket, session_id))
 
             done, pending = await asyncio.wait(
-                [send_task, recv_task],
+                [send_task, recv_task, heartbeat_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
@@ -148,7 +149,7 @@ async def run_live_interview(
                     logger.error("LiveInterview task error: %s", exc)
 
     except (genai.errors.ClientError, genai.errors.ServerError) as e:
-        api_err = _translate_gemini_error(e)
+        api_err = translate_gemini_error(e)
         logger.error("LiveInterview Gemini API error: %s", api_err)
         try:
             await websocket.send_text(json.dumps({"type": "error", "message": api_err.message}))
@@ -205,6 +206,10 @@ async def _send_loop(
                     logger.info("Audio stream ended: session=%s", session_id)
                     break
 
+                elif msg_type == "pong":
+                    # Heartbeat acknowledgement — no action needed
+                    pass
+
                 elif msg_type == "slide_change":
                     # Founder advanced to a new slide.
                     # Inject a text message into the Live session so Sam knows.
@@ -227,11 +232,31 @@ async def _send_loop(
     except WebSocketDisconnect:
         pass
     except (genai.errors.ClientError, genai.errors.ServerError) as e:
-        logger.error("_send_loop Gemini API error: %s", _translate_gemini_error(e))
-        raise _translate_gemini_error(e)
+        logger.error("_send_loop Gemini API error: %s", translate_gemini_error(e))
+        raise translate_gemini_error(e)
     except Exception as e:
         logger.error("_send_loop error: %s", e)
         raise
+
+
+async def _heartbeat_loop(websocket: WebSocket, session_id: str) -> None:
+    """
+    Send a ``{"type": "ping"}`` frame every ``ws_heartbeat_interval_seconds``
+    seconds to keep the connection alive through proxies and load balancers.
+
+    The client responds with ``{"type": "pong"}`` which is handled in
+    ``_send_loop`` (ignored — its purpose is just to reset idle timers).
+    """
+    interval = settings.ws_heartbeat_interval_seconds
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            await websocket.send_text(json.dumps({"type": "ping"}))
+            logger.debug("LiveInterview heartbeat sent: session=%s", session_id)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass  # WebSocket closed — let the main loop handle cleanup
 
 
 async def _receive_loop(
@@ -297,8 +322,8 @@ async def _receive_loop(
     except WebSocketDisconnect:
         pass
     except (genai.errors.ClientError, genai.errors.ServerError) as e:
-        logger.error("_receive_loop Gemini API error: %s", _translate_gemini_error(e))
-        raise _translate_gemini_error(e)
+        logger.error("_receive_loop Gemini API error: %s", translate_gemini_error(e))
+        raise translate_gemini_error(e)
     except Exception as e:
         logger.error("_receive_loop error: %s", e)
         raise

@@ -16,6 +16,7 @@ import {
   renderVerdict,
   renderSources,
 } from './render.js';
+import { showToast, showError } from './ui.js';
 
 const API_BASE = window.location.origin;
 const POLL_MS = 3000;
@@ -23,6 +24,7 @@ const MAX_POLLS = 60; // ~3 min timeout
 
 let _timer = null;
 let _polls = 0;
+let _sessionId = null;
 let _rendered = {
   delivery: false,
   market: false,
@@ -62,6 +64,7 @@ export function resetPipeline() {
   stopWatch();
   _rendered = { delivery: false, market: false, deliberation: false, verdict: false };
   _polls = 0;
+  _sessionId = null;
   STEPS.forEach(s => setStep(s.id, 'pending'));
   // Hide all result cards
   [
@@ -74,6 +77,7 @@ export function resetPipeline() {
 
 export function startPipelineWatch(sessionId) {
   stopWatch();
+  _sessionId = sessionId;
   _polls = 0;
   document.getElementById('pipeline-panel')?.classList.remove('hidden');
   setStep('step-transcript', 'done');
@@ -90,15 +94,31 @@ async function _poll(sessionId) {
   _polls++;
   if (_polls > MAX_POLLS) {
     stopWatch();
+    // Mark any still-running steps as timed out
+    STEPS.forEach(({ id }) => {
+      const el = document.querySelector(`[data-step="${id}"]`);
+      if (el?.classList.contains('running')) setStep(id, 'error');
+    });
+    showToast('Analysis is taking longer than expected. Results may still arrive — refresh to check.', 'warn');
     return;
   }
 
   let state;
   try {
     const res = await fetch(`${API_BASE}/api/session/${sessionId}`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      // 404 means session disappeared (e.g. server restart) — stop polling
+      if (res.status === 404) {
+        stopWatch();
+        showError('Session not found. The server may have restarted. Please start a new session.');
+      }
+      return;
+    }
     state = await res.json();
-  } catch { return; }
+  } catch {
+    // Transient network error — keep polling; toast after repeated failures
+    return;
+  }
 
   // ── Pitch context ────────────────────────────────────────────────────────
   const hasPitch = state.pitch_context && Object.values(state.pitch_context).some(Boolean);
@@ -123,6 +143,7 @@ async function _poll(sessionId) {
     } else if (mStatus === 'failed') {
       setStep('step-market', 'error');
       _rendered.market = true; // don't retry
+      showToast('Market research encountered an error — other results will still appear.', 'warn');
     }
   }
 
@@ -147,6 +168,7 @@ async function _poll(sessionId) {
   } else if (dStatus === 'failed' && !_rendered.verdict) {
     setStep('step-deliberation', 'error');
     setStep('step-verdict', 'error');
+    showError('VC deliberation failed. Check the server logs for details.');
     stopWatch();
   }
 }

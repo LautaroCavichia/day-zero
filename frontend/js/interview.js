@@ -11,13 +11,24 @@
  */
 
 import { startCapture, stopCapture, initPlayback, playChunk, resetPlayback } from './audio.js';
+import { showToast, showError } from './ui.js';
 
 const API_BASE = window.location.origin;
+
+// Reconnect config
+const MAX_RECONNECT_ATTEMPTS = 4;
+const RECONNECT_BASE_DELAY_MS = 1500; // doubles each attempt
 
 let _socket = null;
 let _onEnded = null;
 let _sessionId = null;
 let _coachTimer = null;
+let _callbacks = {};
+
+// Reconnect state
+let _reconnectAttempts = 0;
+let _reconnectTimer = null;
+let _intentionalClose = false;
 
 export function isActive() {
   return _socket !== null && _socket.readyState === WebSocket.OPEN;
@@ -26,6 +37,9 @@ export function isActive() {
 export async function startInterview(sessionId, { onTranscript, onStatus, onEnded, onCoachingTip }) {
   _onEnded = onEnded;
   _sessionId = sessionId;
+  _callbacks = { onTranscript, onStatus, onEnded, onCoachingTip };
+  _intentionalClose = false;
+  _reconnectAttempts = 0;
 
   // Init audio playback context first (needs user gesture)
   initPlayback();
@@ -37,16 +51,21 @@ export async function startInterview(sessionId, { onTranscript, onStatus, onEnde
     }
   });
 
+  _connect(sessionId);
+}
+
+function _connect(sessionId) {
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${wsProto}//${window.location.host}/ws/live/${sessionId}`;
   _socket = new WebSocket(wsUrl);
   _socket.binaryType = 'arraybuffer';
 
   _socket.onopen = () => {
-    onStatus('connected');
+    _reconnectAttempts = 0;
+    _callbacks.onStatus?.('connected');
     // Start periodic coaching tip requests (every 25 seconds)
-    if (onCoachingTip) {
-      _coachTimer = setInterval(() => _fetchCoachingTip(sessionId, onCoachingTip), 25000);
+    if (_callbacks.onCoachingTip && !_coachTimer) {
+      _coachTimer = setInterval(() => _fetchCoachingTip(sessionId, _callbacks.onCoachingTip), 25000);
     }
   };
 
@@ -54,26 +73,42 @@ export async function startInterview(sessionId, { onTranscript, onStatus, onEnde
     if (typeof event.data === 'string') {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
-      _handleTextEvent(msg, onTranscript, onStatus);
+      _handleTextEvent(msg);
     } else {
       await playChunk(event.data);
     }
   };
 
-  _socket.onerror = (err) => {
-    console.error('WS error', err);
-    onStatus('error');
-    _teardown();
+  _socket.onerror = () => {
+    // onerror always fires before onclose; let onclose drive reconnect logic
   };
 
-  _socket.onclose = () => {
-    onStatus('closed');
-    _teardown();
-    if (_onEnded) _onEnded();
+  _socket.onclose = (event) => {
+    if (_intentionalClose) {
+      _callbacks.onStatus?.('closed');
+      _finalize();
+      return;
+    }
+
+    // Abnormal close — attempt reconnect
+    if (_reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      _reconnectAttempts++;
+      const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, _reconnectAttempts - 1);
+      _callbacks.onStatus?.(`reconnecting (attempt ${_reconnectAttempts})...`);
+      showToast(`Interview connection lost — reconnecting (${_reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`, 'warn');
+      _reconnectTimer = setTimeout(() => _connect(sessionId), delay);
+    } else {
+      showError('Interview connection lost. Please stop and restart the interview.');
+      _callbacks.onStatus?.('error');
+      _finalize();
+      if (_onEnded) _onEnded();
+    }
   };
 }
 
 export function stopInterview() {
+  _intentionalClose = true;
+  if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
   if (_socket && _socket.readyState === WebSocket.OPEN) {
     _socket.send(JSON.stringify({ type: 'end_stream' }));
   }
@@ -106,10 +141,20 @@ async function _fetchCoachingTip(sessionId, onCoachingTip) {
   }
 }
 
-function _teardown() {
+/** Called after a deliberate stop or after all reconnect attempts exhausted. */
+function _finalize() {
   stopCapture();
   resetPlayback();
   if (_coachTimer) { clearInterval(_coachTimer); _coachTimer = null; }
+  _socket = null;
+  _sessionId = null;
+}
+
+function _teardown() {
+  if (_coachTimer) { clearInterval(_coachTimer); _coachTimer = null; }
+  if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+  stopCapture();
+  resetPlayback();
   if (_socket) {
     _socket.onclose = null; // prevent double-fire of onEnded
     if (_socket.readyState === WebSocket.OPEN || _socket.readyState === WebSocket.CONNECTING) {
@@ -120,27 +165,31 @@ function _teardown() {
   _sessionId = null;
 }
 
-function _handleTextEvent(msg, onTranscript, onStatus) {
+function _handleTextEvent(msg) {
   switch (msg.type) {
     case 'transcript_input':
-      onTranscript('Founder', msg.text);
+      _callbacks.onTranscript?.('Founder', msg.text);
       break;
     case 'transcript_output':
-      onTranscript('Sam', msg.text);
+      _callbacks.onTranscript?.('Sam', msg.text);
       break;
     case 'turn_complete':
-      onStatus('turn_complete');
+      _callbacks.onStatus?.('turn_complete');
       break;
     case 'interrupted':
-      onStatus('interrupted');
+      _callbacks.onStatus?.('interrupted');
+      break;
+    case 'pong':
+      // Heartbeat response from server — no-op
       break;
     case 'error':
       console.error('Interview server error:', msg.message);
-      onStatus('error');
+      showError(`Interview error: ${msg.message}`);
+      _callbacks.onStatus?.('error');
+      _intentionalClose = true;
       _teardown();
       break;
     default:
       break;
   }
 }
-

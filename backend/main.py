@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -28,6 +29,7 @@ load_dotenv()
 # ── All imports below are intentionally after load_dotenv() ──────────────
 # ruff: noqa: E402
 import session_state as ss  # noqa: E402
+from agents.coaching import get_coaching_tip  # noqa: E402
 from agents.deck_analyst import analyze_deck  # noqa: E402
 from agents.deliberation import run_deliberation  # noqa: E402
 from agents.live_interview import run_live_interview  # noqa: E402
@@ -44,19 +46,21 @@ from core.errors import (  # noqa: E402
     PitchContextEmptyError,
     SessionNotFoundError,
 )
+from core.logging_config import configure_logging  # noqa: E402
+from core.middleware import RequestIdMiddleware  # noqa: E402
 from core.models import (  # noqa: E402
     ErrorResponse,
     PitchTextRequest,
     SessionResponse,
     TaskStartedResponse,
 )
-from agents.coaching import get_coaching_tip  # noqa: E402
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
-logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
+# Configure structured logging before anything else logs
+configure_logging(log_level=settings.log_level, log_format=settings.log_format)
 logger = logging.getLogger(__name__)
 
 
@@ -65,9 +69,42 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("DayZero backend starting up (api_key_set=%s)", settings.api_key_set)
+    logger.info(
+        "DayZero backend starting up: api_key_set=%s session_backend=%s",
+        settings.api_key_set,
+        settings.session_backend,
+    )
+
+    # Initialise the session store (creates SQLite tables if needed)
+    await ss.default_store.initialize()
+    logger.info("Session store initialised")
+
+    # Background task: periodically purge expired sessions
+    cleanup_task = asyncio.create_task(_session_cleanup_loop())
+
     yield
+
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
     logger.info("DayZero backend shutting down")
+
+
+async def _session_cleanup_loop() -> None:
+    """Periodically delete sessions older than session_ttl_hours."""
+    interval = settings.session_cleanup_interval_minutes * 60
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            deleted = await ss.default_store.cleanup_expired()
+            if deleted:
+                logger.info("Session cleanup: removed %d expired session(s)", deleted)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Session cleanup error (will retry): %s", exc)
 
 
 app = FastAPI(
@@ -77,12 +114,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# RequestIdMiddleware must be added before CORSMiddleware so the ID is
+# available throughout the full request lifecycle.
+app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
 
 
@@ -140,7 +181,6 @@ async def file_too_large_handler(request: Request, exc: FileTooLargeError):
 @app.exception_handler(GeminiApiError)
 async def gemini_api_error_handler(request: Request, exc: GeminiApiError):
     logger.error("GeminiApiError: status=%s code=%s %s", exc.status_code, exc.error_code, exc)
-    # Map Gemini HTTP status codes to meaningful HTTP responses
     if exc.status_code == 429:
         http_status = 429
         error_key = "rate_limit_exceeded"
@@ -275,7 +315,7 @@ async def upload_deck(
     if not settings.enable_deck_analysis:
         raise HTTPException(status_code=503, detail="Deck analysis is currently disabled.")
 
-    await ss.default_store.require_state(session_id)  # 404 guard
+    state = await ss.default_store.require_state(session_id)  # 404 guard
 
     filename = file.filename or "deck.pdf"
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -289,9 +329,16 @@ async def upload_deck(
 
     critique = await analyze_deck(session_id, file_bytes, filename)
 
-    # Auto-kick deliberation in background (market may still be running — that's fine,
-    # deliberation uses whatever context is in session state at the time each round runs)
-    asyncio.create_task(_run_deliberation_bg(session_id))
+    # Auto-kick deliberation only if pitch context is already populated.
+    # If not, the post-interview pipeline will trigger it after the live session ends.
+    pitch_ctx = state.get("pitch_context", {})
+    if any(pitch_ctx.values()):
+        asyncio.create_task(_run_deliberation_bg(session_id))
+    else:
+        logger.info(
+            "upload_deck: skipping auto-deliberation for session=%s (no pitch_context yet)",
+            session_id,
+        )
 
     return {"status": "ok", "deck_critique": critique.model_dump()}
 
@@ -314,6 +361,11 @@ async def trigger_market_validation(session_id: str):
     pitch_ctx = state.get("pitch_context", {})
     if not any(pitch_ctx.values()):
         raise PitchContextEmptyError(session_id)
+
+    # Guard: don't spawn a duplicate task if one is already running
+    market_status = state.get("market_intel_status", {}).get("status", "idle")
+    if market_status == "running":
+        return TaskStartedResponse(message="Market validation already running")
 
     asyncio.create_task(_run_market_validation_bg(session_id))
     return TaskStartedResponse(message="Market validation running in background")
@@ -348,6 +400,11 @@ async def trigger_deliberation(session_id: str):
     pitch_ctx = state.get("pitch_context", {})
     if not any(pitch_ctx.values()):
         raise PitchContextEmptyError(session_id)
+
+    # Guard: don't spawn a duplicate task if one is already running
+    delib_status = state.get("deliberation_status", {}).get("status", "idle")
+    if delib_status == "running":
+        return TaskStartedResponse(message="Deliberation already running")
 
     asyncio.create_task(_run_deliberation_bg(session_id))
     return TaskStartedResponse(message="Deliberation panel running in background")
@@ -435,6 +492,7 @@ async def audio_deliberation_ws(websocket: WebSocket, session_id: str):
     Binary frames: PCM 24kHz audio for the current persona.
     """
     import json as _json
+
     from agents.audio_deliberation import run_audio_deliberation
 
     if not settings.api_key_set:
@@ -521,15 +579,89 @@ if os.path.isdir(_frontend_dir):
         raise HTTPException(status_code=404, detail="Debug page not found")
 
 
-# ── Health check ────────────────────────────────────────────────────────────
+# ── Health checks ────────────────────────────────────────────────────────────
 
 
 @app.get("/health", tags=["System"])
 async def health():
-    return {
-        "status": "ok",
+    """Liveness probe — cheap, always fast. Returns 200 if the process is alive."""
+    return {"status": "ok", "version": "0.2.0"}
+
+
+@app.get("/health/ready", tags=["System"])
+async def health_ready():
+    """
+    Readiness probe — verifies the server can actually serve traffic.
+
+    Checks:
+      1. Session store: creates and immediately deletes a probe session.
+      2. Gemini connectivity: calls countTokens (zero quota cost) to verify
+         the API key is valid and the service is reachable.
+         Skipped when GOOGLE_API_KEY is not set or
+         READINESS_GEMINI_CHECK=false.
+
+    Returns 200 when all checks pass, 503 when any check fails.
+    """
+    checks: dict[str, dict] = {}
+    overall_ok = True
+
+    # ── Check 1: session store ─────────────────────────────────────────────
+    t0 = time.monotonic()
+    try:
+        probe_id = await ss.default_store.create()
+        await ss.default_store.delete(probe_id)
+        checks["session_store"] = {
+            "status": "ok",
+            "latency_ms": round((time.monotonic() - t0) * 1000, 1),
+        }
+    except Exception as exc:
+        checks["session_store"] = {
+            "status": "error",
+            "error": str(exc),
+            "latency_ms": round((time.monotonic() - t0) * 1000, 1),
+        }
+        overall_ok = False
+
+    # ── Check 2: Gemini connectivity ───────────────────────────────────────
+    if settings.readiness_gemini_check and settings.api_key_set:
+        t0 = time.monotonic()
+        try:
+            from core.gemini_client import get_client
+            from google.genai import types as _gtypes
+
+            client = get_client()
+            await client.aio.models.count_tokens(
+                model=settings.gemini_flash_model,
+                contents=[_gtypes.Content(role="user", parts=[_gtypes.Part(text="ping")])],
+            )
+            checks["gemini"] = {
+                "status": "ok",
+                "model": settings.gemini_flash_model,
+                "latency_ms": round((time.monotonic() - t0) * 1000, 1),
+            }
+        except Exception as exc:
+            checks["gemini"] = {
+                "status": "error",
+                "error": str(exc),
+                "latency_ms": round((time.monotonic() - t0) * 1000, 1),
+            }
+            overall_ok = False
+    elif not settings.api_key_set:
+        checks["gemini"] = {"status": "skipped", "reason": "GOOGLE_API_KEY not set"}
+    else:
+        checks["gemini"] = {"status": "skipped", "reason": "READINESS_GEMINI_CHECK=false"}
+
+    # ── Session store stats ────────────────────────────────────────────────
+    try:
+        checks["session_store"]["active_sessions"] = await ss.default_store.session_count()
+    except Exception:
+        pass
+
+    body = {
+        "status": "ok" if overall_ok else "degraded",
         "version": "0.2.0",
         "api_key_set": settings.api_key_set,
+        "session_backend": settings.session_backend,
         "features": {
             "live_interview": settings.enable_live_interview,
             "deck_analysis": settings.enable_deck_analysis,
@@ -541,7 +673,10 @@ async def health():
             "gemini_live_model": settings.gemini_live_model,
             "max_upload_mb": settings.max_upload_bytes // (1024 * 1024),
         },
+        "checks": checks,
     }
+
+    return JSONResponse(status_code=200 if overall_ok else 503, content=body)
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────

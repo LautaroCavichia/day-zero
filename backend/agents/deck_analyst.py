@@ -138,13 +138,13 @@ async def _file_to_images(file_bytes: bytes, filename: str) -> list:
     suffix = Path(filename).suffix.lower()
 
     if suffix == ".pptx":
-        file_bytes = await asyncio.get_event_loop().run_in_executor(
+        file_bytes = await asyncio.get_running_loop().run_in_executor(
             None, _pptx_to_pdf_bytes, file_bytes
         )
         suffix = ".pdf"
 
     if suffix == ".pdf":
-        return await asyncio.get_event_loop().run_in_executor(None, _pdf_to_images, file_bytes)
+        return await asyncio.get_running_loop().run_in_executor(None, _pdf_to_images, file_bytes)
 
     raise AgentError(f"Unsupported file type: '{suffix}'. Use PDF or PPTX.")
 

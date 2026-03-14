@@ -1,24 +1,24 @@
 """
 session_state.py — DayZero session schema and management.
 
-Uses ADK InMemorySessionService for local dev.
-Session state schema mirrors ARCHITECTURE.md §5 and core/models.py.
+The ``SessionStore`` class is the single interface all agents use to read
+and write session state.  The concrete backend is chosen at startup based
+on ``settings.session_backend``:
 
-The SessionStore class wraps ADK's service so it can be replaced with
-a different backend (SQLite, Redis) by swapping the dependency in tests
-or production without touching any agent code.
+  "sqlite"  — SqliteSessionStore: persists to disk, survives restarts (default)
+  "memory"  — MemorySessionStore: fast in-process store, used in tests
+
+Session state schema mirrors ARCHITECTURE.md §5 and core/models.py.
 """
 
 from __future__ import annotations
 
-import uuid
+import logging
 from typing import Any
 
 from config import settings
-from core.errors import SessionNotFoundError
-from google.adk.sessions import InMemorySessionService
 
-APP_NAME = settings.app_name
+logger = logging.getLogger(__name__)
 
 
 def make_empty_state() -> dict[str, Any]:
@@ -62,77 +62,131 @@ def make_empty_state() -> dict[str, Any]:
     }
 
 
-class SessionStore:
+# ── In-memory backend (tests + fallback) ───────────────────────────────────
+
+
+class _MemoryBackend:
     """
-    Thin wrapper around ADK's ``InMemorySessionService``.
-
-    Injecting this object (rather than using a module-level singleton
-    directly) makes it possible to swap in a test double in unit tests.
+    Lightweight in-process session store with no external dependencies.
+    Used when ``settings.session_backend == "memory"`` and in tests.
     """
 
-    def __init__(self, service: InMemorySessionService | None = None) -> None:
-        self._svc = service or InMemorySessionService()
+    def __init__(self) -> None:
+        self._store: dict[str, dict[str, Any]] = {}
 
-    # ── CRUD ───────────────────────────────────────────────────────────────
+    async def initialize(self) -> None:
+        pass  # nothing to set up
 
-    async def create(self) -> str:
-        """Create a new ADK session and return its UUID."""
+    async def create(self, initial_state: dict[str, Any]) -> str:
+        import uuid
+
         session_id = str(uuid.uuid4())
-        await self._svc.create_session(
-            app_name=APP_NAME,
-            user_id=settings.default_user_id,
-            session_id=session_id,
-            state=make_empty_state(),
-        )
+        self._store[session_id] = dict(initial_state)
         return session_id
 
-    async def get(self, session_id: str):
-        """Return the raw ADK Session object or None."""
-        return await self._svc.get_session(
-            app_name=APP_NAME,
-            user_id=settings.default_user_id,
-            session_id=session_id,
-        )
-
     async def get_state(self, session_id: str) -> dict[str, Any] | None:
-        """Return session.state as a plain dict, or None if not found."""
-        session = await self.get(session_id)
-        if session is None:
-            return None
-        return dict(session.state)
+        data = self._store.get(session_id)
+        return dict(data) if data is not None else None
 
     async def require_state(self, session_id: str) -> dict[str, Any]:
-        """Like ``get_state`` but raises ``SessionNotFoundError`` on miss."""
+        from core.errors import SessionNotFoundError
+
         state = await self.get_state(session_id)
         if state is None:
             raise SessionNotFoundError(session_id)
         return state
 
-    def _get_stored(self, session_id: str):
-        """Return the **live** (non-copied) stored Session object, or None.
+    async def update(self, session_id: str, updates: dict[str, Any]) -> None:
+        from core.errors import SessionNotFoundError
 
-        ADK's ``get_session`` always returns a deep copy, so mutations to
-        the returned object never persist.  This helper accesses the internal
-        ``sessions`` dict directly so callers can mutate state in-place.
-        """
-        return (
-            self._svc.sessions.get(APP_NAME, {}).get(settings.default_user_id, {}).get(session_id)
-        )
+        if session_id not in self._store:
+            raise SessionNotFoundError(session_id)
+        self._store[session_id].update(updates)
+
+    async def delete(self, session_id: str) -> None:
+        self._store.pop(session_id, None)
+
+    async def exists(self, session_id: str) -> bool:
+        return session_id in self._store
+
+    async def append_transcript_turn(
+        self, session_id: str, speaker: str, text: str, timestamp: float
+    ) -> None:
+        if session_id not in self._store:
+            return
+        transcript = list(self._store[session_id].get("live_transcript", []))
+        transcript.append({"speaker": speaker, "text": text, "timestamp": timestamp})
+        self._store[session_id]["live_transcript"] = transcript
+
+    async def set_task_status(
+        self, session_id: str, task_key: str, status: str, error: str | None = None
+    ) -> None:
+        await self.update(session_id, {task_key: {"status": status, "error": error}})
+
+    async def cleanup_expired(self) -> int:
+        return 0
+
+    async def session_count(self) -> int:
+        return len(self._store)
+
+
+# ── Public SessionStore façade ────────────────────────────────────────────
+
+
+class SessionStore:
+    """
+    Public façade that delegates all operations to the configured backend.
+
+    All agent code depends on this class.  The backend can be swapped by
+    passing a different ``backend`` instance (useful in tests).
+
+    Supported backends:
+      SqliteSessionStore  — persistent, default in production
+      _MemoryBackend      — ephemeral, default in tests
+    """
+
+    def __init__(self, backend=None) -> None:
+        self._backend = backend  # type: ignore[assignment]
+        # If no backend is supplied, _build_default_backend() is called lazily
+        # by the property below to avoid importing aiosqlite at module import time.
+
+    @property
+    def _b(self):
+        if self._backend is None:
+            self._backend = _build_default_backend()
+        return self._backend
+
+    # ── Lifecycle ──────────────────────────────────────────────────────────
+
+    async def initialize(self) -> None:
+        """Initialise the backing store (creates DB tables, etc.)."""
+        await self._b.initialize()
+
+    # ── CRUD ───────────────────────────────────────────────────────────────
+
+    async def create(self) -> str:
+        """Create a new session and return its UUID."""
+        return await self._b.create(make_empty_state())
+
+    async def get_state(self, session_id: str) -> dict[str, Any] | None:
+        """Return session state as a plain dict, or None if not found."""
+        return await self._b.get_state(session_id)
+
+    async def require_state(self, session_id: str) -> dict[str, Any]:
+        """Like ``get_state`` but raises ``SessionNotFoundError`` on miss."""
+        return await self._b.require_state(session_id)
 
     async def update(self, session_id: str, updates: dict[str, Any]) -> None:
-        """Merge *updates* into session.state. Raises on missing session."""
-        stored = self._get_stored(session_id)
-        if stored is None:
-            raise SessionNotFoundError(session_id)
-        stored.state.update(updates)
+        """Merge *updates* into session state. Raises on missing session."""
+        await self._b.update(session_id, updates)
 
     async def delete(self, session_id: str) -> None:
         """Delete a session. Silently ignores missing sessions."""
-        await self._svc.delete_session(
-            app_name=APP_NAME,
-            user_id=settings.default_user_id,
-            session_id=session_id,
-        )
+        await self._b.delete(session_id)
+
+    async def exists(self, session_id: str) -> bool:
+        """Return True if the session exists."""
+        return await self._b.exists(session_id)
 
     # ── Domain helpers ─────────────────────────────────────────────────────
 
@@ -144,12 +198,7 @@ class SessionStore:
         timestamp: float,
     ) -> None:
         """Append a single turn to ``live_transcript``."""
-        stored = self._get_stored(session_id)
-        if stored is None:
-            return
-        transcript = list(stored.state.get("live_transcript", []))
-        transcript.append({"speaker": speaker, "text": text, "timestamp": timestamp})
-        stored.state["live_transcript"] = transcript
+        await self._b.append_transcript_turn(session_id, speaker, text, timestamp)
 
     async def set_task_status(
         self,
@@ -167,27 +216,62 @@ class SessionStore:
             status: One of ``"idle" | "running" | "completed" | "failed"``.
             error: Optional error message (set when status == "failed").
         """
-        await self.update(session_id, {task_key: {"status": status, "error": error}})
+        await self._b.set_task_status(session_id, task_key, status, error)
+
+    # ── Maintenance ────────────────────────────────────────────────────────
+
+    async def cleanup_expired(self) -> int:
+        """Delete sessions older than the configured TTL. Returns count deleted."""
+        return await self._b.cleanup_expired()
+
+    async def session_count(self) -> int:
+        """Return total live session count (for health checks)."""
+        return await self._b.session_count()
+
+
+# ── Backend factory ────────────────────────────────────────────────────────
+
+
+def _build_default_backend():
+    """Build the appropriate backend from settings."""
+    if settings.session_backend == "sqlite":
+        import os
+
+        from core.sqlite_session_service import SqliteSessionStore
+
+        db_path = settings.session_db_path
+        # Ensure the parent directory exists
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
+        return SqliteSessionStore(
+            db_path=db_path,
+            app_name=settings.app_name,
+            user_id=settings.default_user_id,
+            session_ttl_seconds=settings.session_ttl_hours * 3600,
+        )
+    else:
+        logger.info("Using in-memory session backend")
+        return _MemoryBackend()
 
 
 # ── Module-level default store (used by FastAPI app) ──────────────────────
-# Agents should accept a SessionStore parameter so they can be tested with
-# a different instance, but the default allows zero-config usage.
+# Agents accept a SessionStore parameter for testability; this singleton
+# is the default for production use.
 
 default_store = SessionStore()
 
 
-# ── Legacy module-level helpers (kept for backward compat during refactor) ─
-
-session_service = default_store._svc  # noqa: SLF001  (used by orchestrator.py)
+# ── Legacy module-level helpers (kept for backward compat) ─────────────────
 
 
 async def create_session() -> str:
     return await default_store.create()
 
 
-async def get_session(session_id: str):
-    return await default_store.get(session_id)
+async def get_session(session_id: str) -> dict[str, Any] | None:
+    return await default_store.get_state(session_id)
 
 
 async def get_state(session_id: str) -> dict[str, Any] | None:
