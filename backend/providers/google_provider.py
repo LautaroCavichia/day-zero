@@ -138,13 +138,6 @@ class GoogleProvider(LLMProvider):
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
                 )
             ),
-            # ── Native audio: affective dialog for natural speech ──────────
-            # Enables emotional, conversational delivery instead of flat TTS.
-            native_audio_config=types.NativeAudioConfig(
-                native_audio_generation_config=types.NativeAudioGenerationConfig(
-                    enable_affective_dialog=True,
-                )
-            ),
             # ── VAD: fast end-of-speech so Sam can respond quickly ─────────
             # END_SENSITIVITY_HIGH → detects silence after ~300-500ms (snappy)
             # START_SENSITIVITY_LOW → doesn't cut user off mid-sentence pauses
