@@ -42,7 +42,7 @@ export default function AppLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-screen overflow-hidden bg-background text-foreground">
       <GrainOverlay />
 
       <AppNav
@@ -67,11 +67,11 @@ export default function AppLayout({
       {/* Main content — offset for nav (top-14) and sidebar width */}
       <main
         className={`
-          min-h-screen pt-14 transition-all duration-300
+          h-screen pt-14 overflow-hidden transition-all duration-300
           ${sidebarOpen ? "pl-64" : "pl-16"}
         `}
       >
-        <div className="h-full p-6">
+        <div className="h-full px-8 py-6 overflow-y-auto">
           {children}
         </div>
       </main>

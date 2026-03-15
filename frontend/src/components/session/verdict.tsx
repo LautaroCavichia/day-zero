@@ -28,6 +28,7 @@ import { ScoreBar } from "@/components/ui/score-bar";
 import { CountUp } from "@/components/ui/count-up";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { SourceLink } from "@/components/ui/source-link";
+import { scoreColor } from "@/lib/score-utils";
 
 // ─── Decision color helpers ───────────────────────────────────────────────────
 
@@ -134,19 +135,13 @@ const SCORE_LABELS: { key: keyof ScoreBreakdown; label: string }[] = [
   { key: "delivery", label: "Delivery" },
 ];
 
-function scoreColor(s: number): string {
-  if (s >= 7.5) return "text-[#C8FF00]";
-  if (s >= 5) return "text-[#a0a0a0]";
-  return "text-red-400";
-}
-
 function ScoreBreakdownChart({ breakdown }: { breakdown: ScoreBreakdown }) {
   const [ref, inView] = useInView();
 
   return (
     <div
       ref={ref as React.RefObject<HTMLDivElement>}
-      className={`rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
+      className={`rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/20 p-5 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
       <div className="flex items-center gap-2 mb-5">
         <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
@@ -298,10 +293,10 @@ function NextSteps({ steps }: { steps: string[] }) {
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
-      <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5">
+      <div className="rounded-xl border border-[#2a2a2a] bg-[#0e0e0e] p-5">
         <div className="flex items-center gap-2 mb-4">
-          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#161616] border border-[#1e1e1e]">
-            <List className="size-3 text-[#a0a0a0]" strokeWidth={1.5} />
+          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
+            <List className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
           </div>
           <h3 className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
             Next Steps
@@ -310,7 +305,7 @@ function NextSteps({ steps }: { steps: string[] }) {
         <ol className="flex flex-col gap-3">
           {steps.map((step, i) => (
             <li key={i} className="flex gap-3 items-start">
-              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#161616] border border-[#2a2a2a] text-[10px] font-mono text-[#5a5a5a] flex items-center justify-center mt-0.5">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#0A1F12] border border-[#1A3D28]/60 text-[10px] font-mono text-[#C8FF00]/70 flex items-center justify-center mt-0.5">
                 {i + 1}
               </span>
               <span className="text-sm text-[#a0a0a0] leading-relaxed">{step}</span>
@@ -337,7 +332,7 @@ function SourcesPanel({ sources }: { sources: SourceCitation[] }) {
     >
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-3 rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] hover:border-[#2a2a2a] transition-colors duration-150"
+        className="w-full flex items-center justify-between px-5 py-3 rounded-xl border border-[#2a2a2a] bg-[#0e0e0e] hover:border-[#1A3D28]/60 hover:bg-[#0A1F12]/20 transition-colors duration-150"
       >
         <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
           {sources.length} Sources Cited
@@ -441,11 +436,14 @@ export default function VerdictComponent({ verdict, deliberationStatus }: Verdic
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-8">
+    <div className="flex flex-col gap-6 pb-8 max-w-5xl mx-auto w-full">
       {/* Page header */}
       <div className="page-load-item" style={{ animationDelay: "0ms" }}>
         <div className="flex items-center justify-between">
           <div>
+            <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
+              Phase 5 — Final Verdict
+            </p>
             <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">Final Verdict</h1>
             <p className="text-sm text-[#5a5a5a] mt-0.5">Investment decision from the VC panel</p>
           </div>

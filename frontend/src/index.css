@@ -443,6 +443,103 @@ html {
   100% { transform: scale(1)     rotate(0deg); }
 }
 
+/* ─── Enhanced card system ─── */
+/* Base card — slightly brighter surface than before */
+.dz-card {
+  border-radius: 0.75rem;
+  border: 1px solid #1e1e1e;
+  background: #111111;
+  padding: 1.25rem;
+  transition: border-color 0.15s ease;
+}
+
+.dz-card:hover {
+  border-color: #262626;
+}
+
+/* Elevated card — for nested / emphasis content */
+.dz-card-elevated {
+  border-radius: 0.75rem;
+  border: 1px solid #1e1e1e;
+  background: #161616;
+  padding: 1.25rem;
+}
+
+/* Forest accent card */
+.dz-card-forest {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(26, 61, 40, 0.6);
+  background: rgba(10, 31, 18, 0.5);
+  padding: 1.25rem;
+}
+
+/* Red/danger card */
+.dz-card-danger {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(127, 29, 29, 0.4);
+  background: rgba(69, 10, 10, 0.15);
+  padding: 1.25rem;
+}
+
+/* ─── Section header utility ─── */
+.dz-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dz-section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dz-text-muted);
+}
+
+/* ─── Icon box utility ─── */
+.dz-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(26, 61, 40, 0.6);
+  background: #0A1F12;
+  flex-shrink: 0;
+}
+
+.dz-icon-box-neutral {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #1e1e1e;
+  background: #161616;
+  flex-shrink: 0;
+}
+
+/* ─── Vivid accent dot for persona / status indicators ─── */
+.dz-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ─── Persona column card (deliberation 3-col layout) ─── */
+.dz-persona-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+
 /* ─── Phase notification toast ─── */
 @keyframes toast-in {
   from {

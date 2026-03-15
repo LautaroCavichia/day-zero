@@ -43,7 +43,7 @@ function MarketSizeCard({ marketSize }: { marketSize: MarketIntel["market_size"]
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up" : ""}`}
     >
-      <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5">
+      <div className="rounded-xl border border-[#1A3D28]/50 bg-[#0A1F12]/30 p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
@@ -227,8 +227,8 @@ function CompetitorTable({ competitors }: { competitors: Competitor[] }) {
     <div ref={ref as React.RefObject<HTMLDivElement>}>
       <div className={`flex items-center justify-between mb-3 anim-hidden ${inView ? "anim-fade-up" : ""}`}>
         <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#161616] border border-[#1e1e1e]">
-            <Users className="size-3 text-[#a0a0a0]" strokeWidth={1.5} />
+          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
+            <Users className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
           </div>
           <h3 className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
             Competitors
@@ -263,7 +263,7 @@ function PivotCard({
       className={`anim-hidden ${inView ? "anim-scale-up" : ""}`}
       style={{ animationDelay: `${animDelay}ms` }}
     >
-      <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 flex flex-col gap-3">
+      <div className="rounded-xl border border-amber-900/30 bg-amber-950/10 p-5 flex flex-col gap-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1a1400]/60 border border-yellow-900/30 flex-shrink-0 mt-0.5">
@@ -281,7 +281,7 @@ function PivotCard({
         <p className="text-sm text-[#a0a0a0] leading-relaxed">{pivot.rationale}</p>
 
         {/* Footer: precedent + source */}
-        <div className="flex items-center justify-between pt-2 border-t border-[#1e1e1e]">
+          <div className="flex items-center justify-between pt-2 border-t border-amber-900/20">
           {pivot.precedent_company && (
             <span className="text-xs font-mono text-[#5a5a5a]">
               cf. <span className="text-[#a0a0a0]">{pivot.precedent_company}</span>
@@ -324,10 +324,11 @@ function PivotSuggestions({ pivots }: { pivots: PivotSuggestion[] }) {
 
 function MarketIntelLoading() {
   return (
-    <div className="flex flex-col gap-6 pb-8 animate-[fade-in_0.4s_ease_both]">
+    <div className="flex flex-col gap-6 pb-8 max-w-5xl mx-auto w-full animate-[fade-in_0.4s_ease_both]">
       {/* Header skeleton */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
+          <div className="h-3 w-28 rounded-md bg-[#161616] animate-pulse" />
           <div className="h-5 w-36 rounded-md bg-[#1e1e1e] animate-pulse" />
           <div className="h-3.5 w-52 rounded-md bg-[#161616] animate-pulse" />
         </div>
@@ -407,19 +408,22 @@ function MarketIntelIdle({
   ];
 
   return (
-    <div className="flex flex-col gap-8 pb-8">
-      {/* Header */}
-      <div className="page-load-item" style={{ animationDelay: "0ms" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">Market Intelligence</h1>
-            <p className="text-sm text-[#5a5a5a] mt-0.5">Grounded research on your market and competitive landscape</p>
-          </div>
-        </div>
+    <div className="flex flex-col items-center justify-center min-h-[400px] gap-8 px-6 animate-[phase-enter_0.4s_cubic-bezier(0.22,1,0.36,1)_both]">
+      {/* Phase label + copy */}
+      <div className="text-center max-w-md anim-hidden anim-fade-up anim-delay-100">
+        <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-3">
+          Phase 3 — Market Intelligence
+        </p>
+        <h2 className="text-2xl font-semibold text-[#f0f0f0] font-heading mb-3">
+          Validate your market
+        </h2>
+        <p className="text-sm text-[#5a5a5a] leading-relaxed">
+          A deep research sweep on your market, competitive landscape, and timing signals — grounded with live Google Search data.
+        </p>
       </div>
 
       {/* Feature preview grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 w-full max-w-lg anim-hidden anim-fade-up anim-delay-200">
         {previews.map((p, i) => (
           <div
             key={p.label}
@@ -438,20 +442,18 @@ function MarketIntelIdle({
       </div>
 
       {/* CTA */}
-      <div className="flex flex-col items-center gap-4 text-center py-4">
+      <div className="flex flex-col items-center gap-4 anim-hidden anim-fade-up anim-delay-300">
         {canTrigger ? (
           <>
-            <p className="text-sm text-[#5a5a5a] max-w-sm leading-relaxed">
-              Run a deep research sweep on your market. Results are grounded with live Google Search data.
-            </p>
             <button
               onClick={onTrigger}
               disabled={isTriggering}
               className="
-                flex items-center gap-2 px-5 py-2.5 rounded-xl
+                flex items-center gap-2 px-8 py-3.5 rounded-xl
                 bg-[#C8FF00] text-black text-sm font-semibold
                 hover:bg-[#D4FF33] transition-all duration-150
                 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+                shadow-[0_0_40px_rgba(200,255,0,0.25)]
               "
             >
               {isTriggering ? (
@@ -466,13 +468,12 @@ function MarketIntelIdle({
                 </>
               )}
             </button>
-            <div className="flex items-center gap-1.5 text-xs font-mono text-[#3a3a3a]">
-              <Globe className="size-3" strokeWidth={1.5} />
+            <p className="text-[11px] text-[#3a3a3a] font-mono">
               Powered by Google Search grounding · ~30–60 seconds
-            </div>
+            </p>
           </>
         ) : (
-          <p className="text-sm text-[#5a5a5a] max-w-sm leading-relaxed">
+          <p className="text-sm text-[#5a5a5a] max-w-sm text-center leading-relaxed">
             Complete the interview to enable market research.
           </p>
         )}
@@ -581,6 +582,7 @@ export default function MarketIntelComponent({
     <PhaseShell
       title="Market Intelligence"
       subtitle="Grounded research on your market and competitive landscape"
+      phaseLabel="Phase 3 — Market Intelligence"
       badge={
         <span className="tag-pill tag-pill-pass">
           Complete

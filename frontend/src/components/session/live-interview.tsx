@@ -18,6 +18,9 @@ import {
   AlertCircle,
   CheckCircle2,
   BookOpen,
+  MessageSquare,
+  Clock,
+  TrendingUp,
 } from "lucide-react";
 import { useLiveInterview } from "@/hooks/useLiveInterview";
 import { useAudioPipeline } from "@/hooks/useAudioPipeline";
@@ -26,6 +29,7 @@ import { api } from "@/services/api";
 import SlideViewer from "@/components/session/slide-viewer";
 import VoiceChannel from "@/components/session/voice-channel";
 import ChatTranscript from "@/components/session/chat-transcript";
+import TranscriptDrawer from "@/components/session/transcript-drawer";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import TrainingReviewPanel from "@/components/session/training-review";
 import type { DeliveryScores, TranscriptTurn } from "@/types/session";
@@ -271,9 +275,19 @@ interface PostInterviewProps {
   onRedo: () => void;
 }
 
+/** Derive simple stats from transcript turns */
+function transcriptStats(transcript: TranscriptTurn[]) {
+  const samTurns = transcript.filter((t) => t.speaker === "Sam");
+  const founderTurns = transcript.filter((t) => t.speaker === "Founder");
+  const founderWords = founderTurns.reduce((acc, t) => acc + (t.text?.split(/\s+/).length ?? 0), 0);
+  const avgWordsPerTurn = founderTurns.length > 0 ? Math.round(founderWords / founderTurns.length) : 0;
+  return { samTurns: samTurns.length, founderTurns: founderTurns.length, avgWordsPerTurn };
+}
+
 function PostInterviewScreen({ sessionId, scores, transcript, duration, onContinue, onRedo }: PostInterviewProps) {
   const [showRedoConfirm, setShowRedoConfirm] = useState(false);
   const [view, setView] = useState<PostView>("results");
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   const formatDuration = (s: number) => {
     const m = Math.floor(s / 60);
@@ -281,20 +295,36 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
     return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
   };
 
+  const stats = transcriptStats(transcript);
+
+  // Derive an overall delivery score (0–100) from scores for a summary badge
+  const overallDelivery = scores
+    ? Math.round(((scores.confidence + scores.specificity + scores.energy) / 3) * 100)
+    : null;
+
+  const deliveryColor =
+    overallDelivery == null
+      ? "text-[#5a5a5a]"
+      : overallDelivery >= 70
+      ? "text-[#C8FF00]"
+      : overallDelivery >= 40
+      ? "text-amber-400"
+      : "text-red-400";
+
   return (
-    <div className="flex flex-col gap-6 h-full animate-[phase-enter_0.4s_cubic-bezier(0.22,1,0.36,1)_both]">
+    <div className="flex flex-col gap-5 h-full max-w-5xl mx-auto w-full animate-[phase-enter_0.4s_cubic-bezier(0.22,1,0.36,1)_both]">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 anim-hidden anim-fade-up">
+      <div className="flex items-start justify-between gap-4 flex-shrink-0 anim-hidden anim-fade-up">
         <div>
           <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
-            Interview Complete
+            Phase 1 — Live Interview
           </p>
           <h2 className="text-xl font-semibold text-[#f0f0f0] font-heading">
-            Your Interview
+            Interview Complete
           </h2>
           {duration > 0 && (
-            <p className="text-sm text-[#5a5a5a] mt-1">
-              Duration: {formatDuration(duration)}
+            <p className="text-sm text-[#5a5a5a] mt-0.5">
+              {formatDuration(duration)} &middot; {stats.founderTurns + stats.samTurns} exchanges
             </p>
           )}
         </div>
@@ -348,15 +378,24 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
         </div>
       )}
 
-      {/* Results view: Two-column scores + transcript */}
+      {/* Results view: Two-column scores + summary */}
       {view === "results" && (
-        <div className="flex gap-5 flex-1 min-h-0">
+        <div className="flex gap-5 flex-1 min-h-0 overflow-y-auto">
           {/* Left: Delivery scores */}
           <div className="w-72 flex-shrink-0 flex flex-col gap-4">
+            {/* Score card */}
             <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 flex flex-col gap-4">
-              <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase">
-                Delivery Scores
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase">
+                  Delivery Scores
+                </p>
+                {overallDelivery != null && (
+                  <span className={`text-lg font-mono font-bold ${deliveryColor}`}>
+                    {overallDelivery}
+                    <span className="text-xs text-[#3a3a3a] font-normal">/100</span>
+                  </span>
+                )}
+              </div>
               {scores ? (
                 <div className="flex flex-col gap-3">
                   <ScoreRow
@@ -392,6 +431,27 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
               )}
             </div>
 
+            {/* Transcript button */}
+            <button
+              onClick={() => setTranscriptOpen(true)}
+              className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-[#2a2a2a] bg-[#161616] hover:border-[#3a3a3a] hover:bg-[#1a1a1a] transition-all duration-150 text-left group"
+            >
+              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#0A1F12] border border-[#1A3D28]/60 flex-shrink-0">
+                <MessageSquare className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-[#a0a0a0] group-hover:text-[#f0f0f0] transition-colors">
+                  View Full Transcript
+                </p>
+                {transcript.length > 0 && (
+                  <p className="text-[10px] text-[#3a3a3a] font-mono mt-0.5">
+                    {transcript.length} turns
+                  </p>
+                )}
+              </div>
+              <ArrowRight className="size-3.5 text-[#3a3a3a] group-hover:text-[#5a5a5a] transition-colors flex-shrink-0" strokeWidth={1.5} />
+            </button>
+
             {/* Next step nudge */}
             <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/30 p-4">
               <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase mb-2">
@@ -410,19 +470,117 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
             </div>
           </div>
 
-          {/* Right: Full transcript */}
-          <div className="flex-1 min-w-0 flex flex-col gap-2">
-            <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase flex-shrink-0">
-              Full Transcript
-            </p>
-            <ChatTranscript
-              transcript={transcript}
-              isSamSpeaking={false}
-              className="flex-1"
-            />
+          {/* Right: Interview summary */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4">
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3 flex-shrink-0">
+              {[
+                {
+                  icon: <Clock className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />,
+                  label: "Duration",
+                  value: duration > 0 ? formatDuration(duration) : "—",
+                },
+                {
+                  icon: <MessageSquare className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />,
+                  label: "Sam's Questions",
+                  value: String(stats.samTurns),
+                },
+                {
+                  icon: <TrendingUp className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />,
+                  label: "Avg Words/Answer",
+                  value: stats.avgWordsPerTurn > 0 ? String(stats.avgWordsPerTurn) : "—",
+                },
+              ].map(({ icon, label, value }, i) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex flex-col gap-2 anim-hidden anim-fade-up"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
+                  <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#0A1F12] border border-[#1A3D28]/60">
+                    {icon}
+                  </div>
+                  <div>
+                    <p className="text-lg font-mono font-bold text-[#f0f0f0]">{value}</p>
+                    <p className="text-[10px] font-mono text-[#3a3a3a] tracking-wide uppercase mt-0.5">{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Sam's questions list — pulled from transcript */}
+            {stats.samTurns > 0 && (
+              <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-100">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
+                    <MessageSquare className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
+                  </div>
+                  <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
+                    Sam's Questions
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {transcript
+                    .filter((t) => t.speaker === "Sam")
+                    .slice(0, 6)
+                    .map((turn, i) => (
+                      <div
+                        key={i}
+                        className="flex gap-2.5 items-start py-2 border-b border-[#1a1a1a] last:border-0"
+                      >
+                        <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#1A3D28]/60 border border-[#1A3D28]/40 text-[9px] font-mono text-[#5a5a5a] flex items-center justify-center mt-0.5">
+                          {i + 1}
+                        </span>
+                        <p className="text-xs text-[#a0a0a0] leading-relaxed line-clamp-2">
+                           {turn.text}
+                        </p>
+                      </div>
+                    ))}
+                  {stats.samTurns > 6 && (
+                    <button
+                      onClick={() => setTranscriptOpen(true)}
+                      className="text-[10px] text-[#C8FF00]/60 hover:text-[#C8FF00] font-mono transition-colors mt-1 text-left"
+                    >
+                      +{stats.samTurns - 6} more — view full transcript
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Delivery insight */}
+            {scores && (
+              <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/20 p-5 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-200">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
+                    <TrendingUp className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
+                  </div>
+                  <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
+                    Delivery Insight
+                  </p>
+                </div>
+                <p className="text-xs text-[#a0a0a0] leading-relaxed">
+                  {scores.confidence >= 0.7 && scores.specificity >= 0.7
+                    ? "Strong confident delivery with good specificity. Keep that energy in the next phase."
+                    : scores.specificity < 0.5
+                    ? "Focus on adding more specific numbers, names, and dates in your next pitch attempt."
+                    : scores.confidence < 0.5
+                    ? "Work on projecting more certainty. Avoid hedging phrases like 'kind of' and 'I think'."
+                    : scores.hesitation_count > 7
+                    ? `${scores.hesitation_count} hesitations detected. Practice your key talking points until they feel automatic.`
+                    : "Solid delivery overall. Review Sam's toughest questions in the transcript to prepare for VC deliberation."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      {/* Transcript slide-over drawer */}
+      <TranscriptDrawer
+        open={transcriptOpen}
+        onClose={() => setTranscriptOpen(false)}
+        transcript={transcript}
+      />
 
       {/* Redo confirm dialog */}
       <ConfirmDialog

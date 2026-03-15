@@ -9,6 +9,8 @@ import { ArrowRight, RefreshCw } from "lucide-react";
 interface PhaseShellProps {
   title: string;
   subtitle: string;
+  /** e.g. "Phase 3 — Market Intelligence" shown in mono above the title */
+  phaseLabel?: string;
   badge?: ReactNode;
   children: ReactNode;
   /** If provided, shows a "What's Next" card at bottom */
@@ -24,6 +26,7 @@ interface PhaseShellProps {
 export function PhaseShell({
   title,
   subtitle,
+  phaseLabel,
   badge,
   children,
   continueLabel,
@@ -33,11 +36,16 @@ export function PhaseShell({
   isRerunning = false,
 }: PhaseShellProps) {
   return (
-    <div className="flex flex-col gap-6 pb-8">
+    <div className="flex flex-col gap-6 pb-8 max-w-5xl mx-auto w-full">
       {/* Page header */}
       <div className="page-load-item" style={{ animationDelay: "0ms" }}>
         <div className="flex items-center justify-between">
           <div>
+            {phaseLabel && (
+              <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
+                {phaseLabel}
+              </p>
+            )}
             <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">{title}</h1>
             <p className="text-sm text-[#5a5a5a] mt-0.5">{subtitle}</p>
           </div>

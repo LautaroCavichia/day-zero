@@ -16,7 +16,6 @@ import {
   Minus,
   Plus,
   Sparkles,
-  ArrowRight,
   Upload,
   RefreshCw,
 } from "lucide-react";
@@ -24,14 +23,8 @@ import type { DeckCritique, SlideNote } from "@/types/session";
 import { useInView } from "@/hooks/useInView";
 import { ScoreBar } from "@/components/ui/score-bar";
 import { CountUp } from "@/components/ui/count-up";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function scoreColor(score: number): string {
-  if (score >= 7.5) return "text-[#C8FF00]";
-  if (score >= 5) return "text-[#a0a0a0]";
-  return "text-red-400";
-}
+import { scoreColor } from "@/lib/score-utils";
+import { PhaseShell } from "@/components/ui/phase-shell";
 
 // ─── Score Summary Row ────────────────────────────────────────────────────────
 
@@ -278,7 +271,7 @@ function IssuesPanel({
       className={`grid grid-cols-2 gap-4 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
       {/* Top Issues */}
-      <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5">
+      <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-5">
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-red-950/40 border border-red-900/30">
             <AlertCircle className="size-3 text-red-400" strokeWidth={1.5} />
@@ -305,7 +298,7 @@ function IssuesPanel({
       </div>
 
       {/* Missing Slides */}
-      <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5">
+      <div className="rounded-xl border border-yellow-900/30 bg-yellow-950/10 p-5">
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1a1400]/60 border border-yellow-900/30">
             <FileStack className="size-3 text-yellow-500/70" strokeWidth={1.5} />
@@ -375,10 +368,11 @@ function StrengthsPanel({ strengths }: { strengths: string[] }) {
 
 function DeckAnalysisLoading() {
   return (
-    <div className="flex flex-col gap-6 pb-8 max-w-6xl mx-auto w-full animate-[fade-in_0.4s_ease_both]">
+    <div className="flex flex-col gap-6 pb-8 max-w-5xl mx-auto w-full animate-[fade-in_0.4s_ease_both]">
       {/* Skeleton header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
+          <div className="h-3 w-28 rounded-md bg-[#161616] animate-pulse" />
           <div className="h-5 w-32 rounded-md bg-[#1e1e1e] animate-pulse" />
           <div className="h-3.5 w-48 rounded-md bg-[#161616] animate-pulse" />
         </div>
@@ -496,8 +490,58 @@ export default function DeckAnalysis({
   if (isLoading) return <DeckAnalysisLoading />;
   if (!critique) return <DeckAnalysisEmpty />;
 
+  const avgScore =
+    critique.slides.length > 0
+      ? critique.slides.reduce((sum, s) => sum + s.score, 0) / critique.slides.length
+      : 0;
+
   return (
-      <div className="flex flex-col gap-6 pb-8 max-w-6xl mx-auto w-full">
+    <PhaseShell
+      title="Deck Analysis"
+      subtitle="AI critique of your pitch deck"
+      phaseLabel="Phase 2 — Deck Analysis"
+      badge={
+        <div className="flex items-center gap-3">
+          {onReupload && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isReuploading}
+              className="
+                flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                border border-[#2a2a2a] text-xs text-[#a0a0a0]
+                hover:border-[#3a3a3a] hover:text-[#f0f0f0]
+                transition-colors duration-150
+                disabled:opacity-50 disabled:cursor-not-allowed
+              "
+            >
+              {isReuploading ? (
+                <>
+                  <RefreshCw className="size-3 animate-spin" strokeWidth={1.5} />
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <Upload className="size-3" strokeWidth={1.5} />
+                  Update Deck
+                </>
+              )}
+            </button>
+          )}
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
+              Avg. Slide Score
+            </span>
+            <span className={`text-xl font-mono font-semibold ${scoreColor(avgScore)}`}>
+              {critique.slides.length > 0 ? avgScore.toFixed(1) : "—"}
+              <span className="text-sm text-[#3a3a3a] font-mono">/10</span>
+            </span>
+          </div>
+        </div>
+      }
+      continueLabel={continueLabel}
+      continueDescription={continueDescription}
+      onContinue={onContinue}
+    >
       {/* Hidden file input for re-upload */}
       {onReupload && (
         <input
@@ -508,70 +552,6 @@ export default function DeckAnalysis({
           onChange={handleFileChange}
         />
       )}
-
-      {/* Page header */}
-      <div className="page-load-item" style={{ animationDelay: "0ms" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">
-              Deck Analysis
-            </h1>
-            <p className="text-sm text-[#5a5a5a] mt-0.5">
-              AI critique of your pitch deck
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Update Deck button */}
-            {onReupload && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isReuploading}
-                className="
-                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-                  border border-[#2a2a2a] text-xs text-[#a0a0a0]
-                  hover:border-[#3a3a3a] hover:text-[#f0f0f0]
-                  transition-colors duration-150
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
-              >
-                {isReuploading ? (
-                  <>
-                    <RefreshCw className="size-3 animate-spin" strokeWidth={1.5} />
-                    Uploading…
-                  </>
-                ) : (
-                  <>
-                    <Upload className="size-3" strokeWidth={1.5} />
-                    Update Deck
-                  </>
-                )}
-              </button>
-            )}
-            {/* Average score badge */}
-            <div className="flex flex-col items-end gap-0.5">
-              <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
-                Avg. Slide Score
-              </span>
-              <span
-                className={`text-xl font-mono font-semibold ${scoreColor(
-                  critique.slides.length > 0
-                    ? critique.slides.reduce((sum, s) => sum + s.score, 0) /
-                        critique.slides.length
-                    : 0
-                )}`}
-              >
-                {critique.slides.length > 0
-                  ? (
-                      critique.slides.reduce((sum, s) => sum + s.score, 0) /
-                      critique.slides.length
-                    ).toFixed(1)
-                  : "—"}
-                <span className="text-sm text-[#3a3a3a] font-mono">/10</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Score summary row */}
       <ScoreSummaryRow critique={critique} />
@@ -594,37 +574,6 @@ export default function DeckAnalysis({
 
       {/* Strengths */}
       <StrengthsPanel strengths={critique.strengths ?? []} />
-
-      {/* What's next card */}
-      {continueLabel && onContinue && (
-        <div className="page-load-item pt-2" style={{ animationDelay: "200ms" }}>
-          <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/40 p-5 flex items-center justify-between gap-4">
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-[10px] font-mono tracking-widest text-[#C8FF00]/60 uppercase">
-                What's next
-              </span>
-              <span className="text-sm font-semibold text-[#f0f0f0]">{continueLabel}</span>
-              {continueDescription && (
-                <span className="text-xs text-[#5a5a5a] leading-snug mt-0.5">
-                  {continueDescription}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={onContinue}
-              className="
-                flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg
-                bg-[#C8FF00] text-black text-sm font-semibold
-                hover:bg-[#D4FF33] transition-colors duration-150
-                active:scale-[0.98]
-              "
-            >
-              Go
-              <ArrowRight className="size-4" strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    </PhaseShell>
   );
 }
