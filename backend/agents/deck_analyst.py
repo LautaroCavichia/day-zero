@@ -5,6 +5,14 @@ Multimodal deck analysis using gemini-2.5-flash.
 Accepts PDF (converted to PIL images) or PPTX (converted to PDF first).
 
 Writes structured critique to session.state['deck_critique'].
+
+Slide images are stored on disk via core.slide_store (two tiers):
+  - "analysis" (lower DPI) — sent to Gemini for multimodal analysis
+  - "display"  (higher DPI) — served to the browser UI via /slides/{index}
+
+Session state no longer holds raw base64 image data; it only records
+``slide_count`` and the ``deck_critique`` model (which contains per-slide
+text used by SAM during the live interview).
 """
 
 from __future__ import annotations
@@ -18,6 +26,7 @@ from backend.config import settings
 from backend.core.errors import AgentError
 from backend.core.llm_types import ImagePart, MultimodalMessage
 from backend.core.models import DeckCritique
+from backend.core import slide_store
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +70,20 @@ async def analyze_deck(
     """
     Analyze a pitch deck file and write results to session state.
 
-    Also stores slide images (base64 PNG) in session state under 'slide_images'
-    so the live interview can send each slide to Gemini as the founder presents.
+    Two rendering passes are performed from the same PIL images:
+      1. ``analysis`` tier  — sent to Gemini for multimodal critique (lower DPI,
+         keeps token count and latency low).
+      2. ``display`` tier   — higher-DPI PNGs saved to disk via ``slide_store``
+         so the browser UI can fetch each slide directly by URL without any
+         base64 data sitting in session state.
+
+    Session state is updated with:
+      - ``deck_critique``     — full Gemini critique (per-slide text used by SAM)
+      - ``slide_count``       — total number of slides (int, metadata only)
+      - ``deck_analysis_done`` — True
 
     Args:
-        session_id: ADK session ID.
+        session_id: Session identifier string.
         file_bytes: Raw bytes of PDF or PPTX file.
         filename: Original filename (used to detect file type).
         api_key: Gemini API key (falls back to settings).
@@ -74,10 +92,14 @@ async def analyze_deck(
     Returns:
         Validated ``DeckCritique`` Pydantic model.
     """
-    import base64
+    import asyncio
 
     _store = store or ss.default_store
     logger.info("DeckAnalyst: analyzing %s for session=%s", filename, session_id)
+
+    # Clear any previously stored slide files for this session so a re-upload
+    # starts with a clean slate.
+    await asyncio.get_running_loop().run_in_executor(None, slide_store.cleanup, session_id)
 
     images = await _file_to_images(file_bytes, filename)
     if not images:
@@ -85,8 +107,29 @@ async def analyze_deck(
 
     logger.info("DeckAnalyst: extracted %d slides from %s", len(images), filename)
 
-    # Convert all images to PNG bytes first so we can reuse them
-    slide_png_bytes: list[bytes] = [_pil_to_bytes(img) for img in images]
+    # ── Tier 1: analysis-res PNGs (sent to Gemini) ───────────────────────────
+    # Render at ANALYSIS_DPI for the multimodal request.  These are kept in
+    # memory only for the duration of this function.
+    analysis_png_bytes: list[bytes] = await asyncio.get_running_loop().run_in_executor(
+        None, _render_pil_images_to_png, images, slide_store.ANALYSIS_DPI
+    )
+
+    # ── Tier 2: display-res PNGs (served to browser) ─────────────────────────
+    # Render at DISPLAY_DPI and save to disk.  Done concurrently with the
+    # Gemini call below so they finish in parallel.
+    async def _save_display_pngs() -> None:
+        display_png_bytes: list[bytes] = await asyncio.get_running_loop().run_in_executor(
+            None, _render_pil_images_to_png, images, slide_store.DISPLAY_DPI
+        )
+        for i, png in enumerate(display_png_bytes):
+            await asyncio.get_running_loop().run_in_executor(
+                None, slide_store.save, session_id, i, png, "display"
+            )
+        logger.info(
+            "DeckAnalyst: saved %d display-res PNGs to disk for session=%s",
+            len(display_png_bytes),
+            session_id,
+        )
 
     # Deck analysis always uses Gemini Flash for best multimodal performance,
     # regardless of the global LLM_PROVIDER setting (e.g., Mistral has rate limits).
@@ -96,53 +139,90 @@ async def analyze_deck(
     msg = MultimodalMessage(
         role="user",
         text=DECK_ANALYST_PROMPT,
-        images=[ImagePart(mime_type="image/png", data=b) for b in slide_png_bytes],
+        images=[ImagePart(mime_type="image/png", data=b) for b in analysis_png_bytes],
     )
 
-    raw = await provider.generate_json_multimodal(
-        model=settings.gemini_flash_model,
-        messages=[msg],
+    # Run Gemini analysis and display-PNG saving concurrently
+    gemini_task = asyncio.create_task(
+        provider.generate_json_multimodal(
+            model=settings.gemini_flash_model,
+            messages=[msg],
+        )
     )
+    display_task = asyncio.create_task(_save_display_pngs())
+
+    raw, _ = await asyncio.gather(gemini_task, display_task)
 
     # Always stamp the actual slide count (don't trust the model)
     raw["slide_count"] = len(images)
 
     critique = DeckCritique.model_validate(raw)
 
-    # Store slide images as base64 strings so the live interview can use them.
-    # We cap at 150 DPI PNG which is typically 50-200 KB/slide — acceptable for
-    # session state given the hackathon's in-memory store.
-    slide_images_b64 = [base64.b64encode(b).decode("utf-8") for b in slide_png_bytes]
-
+    # Write only lightweight metadata to session state — NO base64 image data.
+    # slide_count lets the frontend know how many /slides/{index} URLs to request.
+    # deck_critique.slides[i].content_text is the sole source of slide text for
+    # SAM's context injection (no separate slide_metadata field needed).
     await _store.update(
         session_id,
         {
             "deck_critique": critique.model_dump(),
+            "slide_count": len(images),
             "deck_analysis_done": True,
-            "slide_images": slide_images_b64,  # list of base64 PNG strings
         },
     )
 
-    # Build lightweight slide metadata for SAM's interview context.
-    # Each entry has index (1-based), title, and all visible text — used to
-    # detect discrepancies between what the founder says and the deck.
-    slide_metadata = [
-        {
-            "index": slide.index,
-            "title": slide.title,
-            "extracted_text": slide.content_text,
-        }
-        for slide in critique.slides
-    ]
-    await _store.update(session_id, {"slide_metadata": slide_metadata})
-
     logger.info(
-        "DeckAnalyst: analysis complete for session=%s, stored %d slide images, %d slide metadata entries",
+        "DeckAnalyst: analysis complete for session=%s, %d slides (display PNGs on disk, no base64 in state)",
         session_id,
-        len(slide_images_b64),
-        len(slide_metadata),
+        len(images),
     )
     return critique
+
+
+# ── Rendering helpers ─────────────────────────────────────────────────────
+
+
+def _render_pil_images_to_png(images: list, dpi: int) -> list[bytes]:
+    """Render a list of PIL Image objects to PNG bytes at the given *dpi*.
+
+    The images are already rasterised (from either pdf2image or the native
+    PPTX renderer), so "dpi" here is only used to scale them relative to the
+    canonical 96-DPI baseline — higher DPI means proportionally larger pixel
+    dimensions and therefore sharper output.
+
+    In practice the images already come out of the converter at the source DPI
+    (controlled by ``settings.deck_render_dpi`` for PDFs and hard-coded 96 DPI
+    equivalent canvas for the native renderer).  This function simply re-saves
+    them as PNG bytes at their existing resolution, which is fine because
+    ``_pdf_to_images`` already honours the DPI setting and the native renderer
+    uses a fixed large canvas (1280×960).  For the display tier we up-scale
+    slightly to guarantee the browser gets ≥220 DPI equivalent quality.
+
+    Args:
+        images: List of PIL Image objects.
+        dpi: Target dots-per-inch.  Images that are smaller than the target
+             are up-scaled with LANCZOS; larger ones are kept as-is.
+
+    Returns:
+        List of PNG bytes, one entry per input image.
+    """
+    import io as _io
+    from PIL import Image
+
+    # Target pixel dimensions at the requested DPI (based on a 10×7.5-inch slide)
+    target_w = int(10 * dpi)
+    target_h = int(7.5 * dpi)
+
+    result: list[bytes] = []
+    for img in images:
+        w, h = img.size
+        if w < target_w or h < target_h:
+            # Up-scale small images so the display tier is visually sharper
+            img = img.resize((target_w, target_h), Image.LANCZOS)
+        buf = _io.BytesIO()
+        img.save(buf, format="PNG", optimize=False)
+        result.append(buf.getvalue())
+    return result
 
 
 # ── File conversion helpers ────────────────────────────────────────────────
@@ -162,13 +242,9 @@ async def _file_to_images(file_bytes: bytes, filename: str) -> list:
             pdf_bytes = await asyncio.get_running_loop().run_in_executor(
                 None, _pptx_to_pdf_bytes, file_bytes
             )
-            return await asyncio.get_running_loop().run_in_executor(
-                None, _pdf_to_images, pdf_bytes
-            )
+            return await asyncio.get_running_loop().run_in_executor(None, _pdf_to_images, pdf_bytes)
         except (AgentError, FileNotFoundError, OSError):
-            logger.info(
-                "LibreOffice unavailable — using native python-pptx rendering"
-            )
+            logger.info("LibreOffice unavailable — using native python-pptx rendering")
             return await asyncio.get_running_loop().run_in_executor(
                 None, _pptx_to_images_native, file_bytes
             )
@@ -222,7 +298,9 @@ def _pptx_to_pdf_bytes(pptx_bytes: bytes) -> bytes:
             return f.read()
 
 
-def _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img_canvas, io_mod, Image_mod):
+def _extract_images_from_shape(
+    shape, slide_w_emu, slide_h_emu, W, H, img_canvas, io_mod, Image_mod
+):
     """Recursively extract and paste all images found inside *shape*.
 
     Handles:
@@ -242,10 +320,10 @@ def _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img_canvas
         try:
             pic_bytes = shape.image.blob
             pic = Image_mod.open(io_mod.BytesIO(pic_bytes)).convert("RGBA")
-            left_px = int(shape.left  / slide_w_emu * W)
-            top_px  = int(shape.top   / slide_h_emu * H)
-            w_px    = int(shape.width  / slide_w_emu * W)
-            h_px    = int(shape.height / slide_h_emu * H)
+            left_px = int(shape.left / slide_w_emu * W)
+            top_px = int(shape.top / slide_h_emu * H)
+            w_px = int(shape.width / slide_w_emu * W)
+            h_px = int(shape.height / slide_h_emu * H)
             if w_px > 0 and h_px > 0:
                 pic = pic.resize((w_px, h_px), Image_mod.LANCZOS)
                 img_canvas.paste(pic.convert("RGB"), (left_px, top_px))
@@ -257,7 +335,9 @@ def _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img_canvas
     elif shape.shape_type == 6:
         try:
             for child in shape.shapes:
-                if _extract_images_from_shape(child, slide_w_emu, slide_h_emu, W, H, img_canvas, io_mod, Image_mod):
+                if _extract_images_from_shape(
+                    child, slide_w_emu, slide_h_emu, W, H, img_canvas, io_mod, Image_mod
+                ):
                     pasted = True
         except Exception:
             pass
@@ -266,8 +346,10 @@ def _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img_canvas
     if not pasted and shape.shape_type not in (13, 6):
         try:
             # namespace-agnostic search for blipFill with an r:embed attribute
-            ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main",
-                  "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+            ns = {
+                "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+                "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+            }
             blips = shape.element.findall(".//a:blipFill/a:blip", ns)
             r_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
             for blip in blips:
@@ -277,10 +359,10 @@ def _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img_canvas
                     if rel and hasattr(rel, "target_part"):
                         pic_bytes = rel.target_part.blob
                         pic = Image_mod.open(io_mod.BytesIO(pic_bytes)).convert("RGBA")
-                        left_px = int(shape.left  / slide_w_emu * W)
-                        top_px  = int(shape.top   / slide_h_emu * H)
-                        w_px    = int(shape.width  / slide_w_emu * W)
-                        h_px    = int(shape.height / slide_h_emu * H)
+                        left_px = int(shape.left / slide_w_emu * W)
+                        top_px = int(shape.top / slide_h_emu * H)
+                        w_px = int(shape.width / slide_w_emu * W)
+                        h_px = int(shape.height / slide_h_emu * H)
                         if w_px > 0 and h_px > 0:
                             pic = pic.resize((w_px, h_px), Image_mod.LANCZOS)
                             img_canvas.paste(pic.convert("RGB"), (left_px, top_px))
@@ -344,7 +426,7 @@ def _pptx_to_images_native(pptx_bytes: bytes) -> list:
             font_title = font_heading = font_body = font_small = ImageFont.load_default()
 
     prs = Presentation(io.BytesIO(pptx_bytes))
-    slide_w_emu = prs.slide_width   # EMUs
+    slide_w_emu = prs.slide_width  # EMUs
     slide_h_emu = prs.slide_height  # EMUs
     images: list = []
 
@@ -359,7 +441,9 @@ def _pptx_to_images_native(pptx_bytes: bytes) -> list:
             # ── Phase 1: composite all images (pictures, groups, diagrams) ──
             has_images = False
             for shape in slide.shapes:
-                if _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img, io, Image):
+                if _extract_images_from_shape(
+                    shape, slide_w_emu, slide_h_emu, W, H, img, io, Image
+                ):
                     has_images = True
 
             # If images were pasted, add a semi-transparent text strip at the top
@@ -372,7 +456,9 @@ def _pptx_to_images_native(pptx_bytes: bytes) -> list:
                 draw = ImageDraw.Draw(img)
 
             # ── Phase 2: extract all text from all shapes ─────────────────────
-            all_text_blocks: list[tuple[str, str]] = []  # (text, level: "title"|"heading"|"body"|"small")
+            all_text_blocks: list[
+                tuple[str, str]
+            ] = []  # (text, level: "title"|"heading"|"body"|"small")
 
             for shape in slide.shapes:
                 shape_type = shape.shape_type
@@ -394,18 +480,24 @@ def _pptx_to_images_native(pptx_bytes: bytes) -> list:
 
                 # Alt-text / description (present on diagrams, charts, SmartArt)
                 try:
-                    nvpr = shape.element.find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr",
-                                              shape.element.nsmap) or \
-                           shape.element.find(".//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr",
-                                              shape.element.nsmap)
+                    nvpr = shape.element.find(
+                        ".//{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr",
+                        shape.element.nsmap,
+                    ) or shape.element.find(
+                        ".//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr",
+                        shape.element.nsmap,
+                    )
                     # Try both pml and dml namespaces for cNvPr
-                    cNvPr = (shape.element.find(
-                        ".//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr") or
-                        shape.element.find(
-                        ".//{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr"))
+                    cNvPr = shape.element.find(
+                        ".//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr"
+                    ) or shape.element.find(
+                        ".//{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr"
+                    )
                     if cNvPr is None:
                         # try the pic/sp namespace
-                        cNvPr = shape.element.find(".//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}cNvPr")
+                        cNvPr = shape.element.find(
+                            ".//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}cNvPr"
+                        )
                     if cNvPr is None:
                         # generic xpath descent
                         for el in shape.element.iter():
@@ -426,6 +518,7 @@ def _pptx_to_images_native(pptx_bytes: bytes) -> list:
                 # Group shapes — collect text from children recursively
                 if shape_type == 6:
                     try:
+
                         def _collect_group_text(group, blocks):
                             for child in group.shapes:
                                 if hasattr(child, "text_frame") and child.has_text_frame:
@@ -434,6 +527,7 @@ def _pptx_to_images_native(pptx_bytes: bytes) -> list:
                                         blocks.append((t, "body"))
                                 if child.shape_type == 6:
                                     _collect_group_text(child, blocks)
+
                         _collect_group_text(shape, all_text_blocks)
                     except Exception:
                         pass

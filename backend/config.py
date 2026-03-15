@@ -190,7 +190,9 @@ class Settings(BaseSettings):
 
     # ── Audio pipeline ────────────────────────────────────────────────────────
     live_api_input_sample_rate: int = Field(
-        default=16000, description="PCM input sample rate expected by the Live API."
+        default=24000,
+        description="PCM input sample rate sent by the browser AudioContext. "
+        "Gemini resamples to 16 kHz internally; any rate is accepted.",
     )
     live_api_output_sample_rate: int = Field(
         default=24000, description="PCM output sample rate returned by the Live API."

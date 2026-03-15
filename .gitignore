@@ -51,5 +51,8 @@ coverage.xml
 /tmp/
 uploads/
 
+# Persistent slide image cache (large binary PNGs)
+data/slides/
+
 # pyproject build artifacts
 *.dist-info/

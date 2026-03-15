@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 def make_empty_state() -> dict[str, Any]:
     """Return a fresh, fully-typed session.state dict."""
     return {
+        # ── Session metadata ─────────────────────────────────────────────
+        "session_name": "",  # User-provided name for the session
         # ── Input context ────────────────────────────────────────────────
         "pitch_context": {
             "company_name": "",
@@ -47,6 +49,7 @@ def make_empty_state() -> dict[str, Any]:
         },
         # ── Deck analysis ────────────────────────────────────────────────
         "deck_critique": None,
+        "slide_count": 0,  # int — number of slides (images live on disk via slide_store)
         # ── Market intelligence ──────────────────────────────────────────
         "market_intel": None,
         # ── Deliberation ─────────────────────────────────────────────────
@@ -56,6 +59,7 @@ def make_empty_state() -> dict[str, Any]:
         # ── Internal flags ───────────────────────────────────────────────
         "live_interview_active": False,
         "deck_analysis_done": False,
+        "pitch_submitted_at": None,  # Unix timestamp, set after text pitch submit
         # Background-task statuses: { "status": "idle|running|completed|failed", "error": None }
         "market_intel_status": {"status": "idle", "error": None},
         "deliberation_status": {"status": "idle", "error": None},
@@ -128,6 +132,39 @@ class _MemoryBackend:
 
     async def session_count(self) -> int:
         return len(self._store)
+
+    async def list_sessions(self) -> list[dict]:
+        import time as _time
+
+        now = _time.time()
+        results = []
+        for sid, state in self._store.items():
+            pc = state.get("pitch_context") or {}
+            fv = state.get("final_verdict") or {}
+            lt = state.get("live_transcript") or []
+            results.append(
+                {
+                    "session_id": sid,
+                    "created_at": now,
+                    "updated_at": now,
+                    "session_name": state.get("session_name", ""),
+                    "company_name": pc.get("company_name", ""),
+                    "one_liner": pc.get("one_liner", ""),
+                    "stage": pc.get("stage", ""),
+                    "verdict_decision": fv.get("decision"),
+                    "weighted_score": fv.get("weighted_score"),
+                    "deck_analysis_done": bool(state.get("deck_analysis_done")),
+                    "market_intel_status": (state.get("market_intel_status") or {}).get(
+                        "status", "idle"
+                    ),
+                    "deliberation_status": (state.get("deliberation_status") or {}).get(
+                        "status", "idle"
+                    ),
+                    "live_interview_active": bool(state.get("live_interview_active")),
+                    "transcript_turns": len(lt),
+                }
+            )
+        return results
 
 
 # ── Public SessionStore façade ────────────────────────────────────────────
@@ -227,6 +264,10 @@ class SessionStore:
     async def session_count(self) -> int:
         """Return total live session count (for health checks)."""
         return await self._b.session_count()
+
+    async def list_sessions(self) -> list[dict]:
+        """Return lightweight session summaries ordered by most-recently-updated."""
+        return await self._b.list_sessions()
 
 
 # ── Backend factory ────────────────────────────────────────────────────────

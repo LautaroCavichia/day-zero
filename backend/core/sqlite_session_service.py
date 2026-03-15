@@ -245,3 +245,57 @@ class SqliteSessionStore:
             ) as cursor:
                 row = await cursor.fetchone()
         return row[0] if row else 0
+
+    async def list_sessions(self) -> list[dict[str, Any]]:
+        """
+        Return lightweight session summaries ordered by most-recently-updated first.
+
+        Extracts only the fields needed for the dashboard card without deserialising
+        the full state blob (especially avoids loading large slide_images arrays).
+        Uses SQLite's json_extract() for zero-Python-overhead field access.
+        """
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute(
+                """
+                SELECT
+                    session_id,
+                    created_at,
+                    updated_at,
+                    json_extract(state, '$.session_name')               AS session_name,
+                    json_extract(state, '$.pitch_context.company_name') AS company_name,
+                    json_extract(state, '$.pitch_context.one_liner')    AS one_liner,
+                    json_extract(state, '$.pitch_context.stage')        AS stage,
+                    json_extract(state, '$.final_verdict.decision')     AS verdict_decision,
+                    json_extract(state, '$.final_verdict.weighted_score') AS weighted_score,
+                    json_extract(state, '$.deck_analysis_done')         AS deck_analysis_done,
+                    json_extract(state, '$.market_intel_status.status') AS market_intel_status,
+                    json_extract(state, '$.deliberation_status.status') AS deliberation_status,
+                    json_extract(state, '$.live_interview_active')      AS live_interview_active,
+                    (SELECT COUNT(*) FROM json_each(json_extract(state, '$.live_transcript'))) AS transcript_turns
+                FROM sessions
+                WHERE app_name=? AND user_id=?
+                ORDER BY updated_at DESC
+                """,
+                (self._app_name, self._user_id),
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        return [
+            {
+                "session_id": r[0],
+                "created_at": r[1],
+                "updated_at": r[2],
+                "session_name": r[3] or "",
+                "company_name": r[4] or "",
+                "one_liner": r[5] or "",
+                "stage": r[6] or "",
+                "verdict_decision": r[7],  # "PASS" | "SOFT PASS" | "NO" | None
+                "weighted_score": r[8],  # 0–100 float | None
+                "deck_analysis_done": bool(r[9]),
+                "market_intel_status": r[10] or "idle",
+                "deliberation_status": r[11] or "idle",
+                "live_interview_active": bool(r[12]),
+                "transcript_turns": r[13] or 0,
+            }
+            for r in rows
+        ]

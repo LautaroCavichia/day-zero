@@ -89,9 +89,7 @@ class GoogleProvider(LLMProvider):
                 parts.append(types.Part(text=msg.text))
             for img in msg.images:
                 parts.append(
-                    types.Part(
-                        inline_data=types.Blob(data=img.data, mime_type=img.mime_type)
-                    )
+                    types.Part(inline_data=types.Blob(data=img.data, mime_type=img.mime_type))
                 )
 
         return await _gc_mm(client=client, model=model, parts=parts)
@@ -110,7 +108,7 @@ class GoogleProvider(LLMProvider):
         """
         Bridge browser WebSocket ↔ Gemini Live API.
 
-        Binary frames from the browser are PCM 16 kHz audio forwarded to
+        Binary frames from the browser are PCM audio forwarded to
         Gemini.  Gemini responds with PCM 24 kHz audio chunks plus JSON
         transcript events, both forwarded back to the browser.
         """
@@ -131,21 +129,53 @@ class GoogleProvider(LLMProvider):
 
         live_config = types.LiveConnectConfig(
             response_modalities=[types.Modality.AUDIO],
-            system_instruction=types.Content(
-                parts=[types.Part(text=system_instruction)]
-            ),
+            system_instruction=types.Content(parts=[types.Part(text=system_instruction)]),
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
+            # ── Voice: give Sam a distinct, sharp, direct voice ────────────
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
+                )
+            ),
+            # ── VAD: fast end-of-speech so Sam can respond quickly ─────────
+            # END_SENSITIVITY_HIGH → detects silence after ~300-500ms (snappy)
+            # START_SENSITIVITY_LOW → doesn't cut user off mid-sentence pauses
+            # silence_duration_ms=500 → 0.5s of silence = turn done (was ~1s+)
+            realtime_input_config=types.RealtimeInputConfig(
+                automatic_activity_detection=types.AutomaticActivityDetection(
+                    disabled=False,
+                    start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_LOW,
+                    end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
+                    prefix_padding_ms=200,
+                    silence_duration_ms=500,
+                )
+            ),
+            # ── Thinking: disabled for lowest-latency responses ───────────────
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
 
         try:
-            async with client.aio.live.connect(
-                model=model, config=live_config
-            ) as gemini_session:
+            async with client.aio.live.connect(model=model, config=live_config) as gemini_session:
                 logger.info("Gemini Live session established: session=%s", session_id)
 
+                # Trigger Sam's greeting immediately so user doesn't wait in silence
+                await gemini_session.send_client_content(
+                    turns=types.Content(
+                        role="user",
+                        parts=[types.Part(text="[The founder has joined the call. Begin your introduction.]")],
+                    ),
+                    turn_complete=True,
+                )
+
                 send_task = asyncio.create_task(
-                    self._send_loop(websocket, gemini_session, session_id, LIVE_API_INPUT_SAMPLE_RATE, slide_metadata or [])
+                    self._send_loop(
+                        websocket,
+                        gemini_session,
+                        session_id,
+                        LIVE_API_INPUT_SAMPLE_RATE,
+                        slide_metadata or [],
+                    )
                 )
                 recv_task = asyncio.create_task(
                     self._receive_loop(websocket, gemini_session, session_id, store)
@@ -161,135 +191,29 @@ class GoogleProvider(LLMProvider):
                         await task
                     except asyncio.CancelledError:
                         pass
-                
+
                 # Check if interview completed
                 interview_completed = False
                 for task in done:
                     exc = task.exception()
                     if task == recv_task and exc is None:
-                        # recv_task completed normally, check its result
                         try:
                             interview_completed = recv_task.result()
                         except Exception:
                             pass
                     elif exc and not isinstance(exc, WebSocketDisconnect):
                         logger.error("stream_live_audio task error: %s", exc)
-                
-                # If interview completed, trigger market analysis + deliberation automatically
-                if interview_completed and store and session_id:
-                    try:
-                        # Ensure pitch_context is populated from interview transcript
-                        state = await store.get_state(session_id)
-                        
-                        pitch_ctx = state.get("pitch_context", {}) if state else {}
-                        if not any(v for v in pitch_ctx.values() if v):
-                            transcript = state.get("live_transcript", []) if state else []
-                            logger.info(
-                                "Auto-generating pitch_context from transcript: session=%s, transcript_turns=%d",
-                                session_id,
-                                len(transcript),
-                            )
-                            
-                            if transcript:
-                                # Extract founder's answers
-                                founder_turns = [
-                                    turn.get("text", "")
-                                    for turn in transcript
-                                    if turn.get("speaker") == "Founder" and turn.get("text")
-                                ]
-                                
-                                if founder_turns:
-                                    pitch_text = " ".join(founder_turns)
-                                    await store.update(session_id, {
-                                        "pitch_context": {
-                                            "company_name": "Extracted from live interview",
-                                            "problem": pitch_text[:2000],
-                                            "solution": "",
-                                            "target_customer": "",
-                                            "business_model": "",
-                                            "traction": "",
-                                            "team": "",
-                                            "ask": "",
-                                            "stage": "",
-                                            "one_liner": "",
-                                        }
-                                    })
-                                    logger.info(
-                                        "Auto-generated pitch_context (%d chars): session=%s",
-                                        len(pitch_text),
-                                        session_id,
-                                    )
-                                else:
-                                    logger.warning(
-                                        "Transcript has no founder turns: session=%s", session_id
-                                    )
-                            else:
-                                logger.warning(
-                                    "Transcript is empty, cannot auto-generate pitch_context: session=%s", session_id
-                                )
-                        
-                        await websocket.send_text(
-                            json.dumps({
-                                "type": "status",
-                                "message": "Interview complete! Starting market analysis...",
-                                "phase": "market_validation"
-                            })
-                        )
-                        
-                        from backend.agents.market_validator import validate_market
-                        
-                        # Verify pitch_context one more time before market analysis
-                        state = await store.get_state(session_id)
-                        final_ctx = state.get("pitch_context", {}) if state else {}
-                        if not any(v for v in final_ctx.values() if v):
-                            logger.error("pitch_context still empty after auto-generation: session=%s", session_id)
-                            await websocket.send_text(
-                                json.dumps({
-                                    "type": "error",
-                                    "message": "Could not generate pitch context from interview. No founder responses captured."
-                                })
-                            )
-                            return
-                        
-                        await validate_market(session_id, store=store)
-                        
-                        await websocket.send_text(
-                            json.dumps({
-                                "type": "status",
-                                "message": "Market analysis complete! Starting deliberation panel...",
-                                "phase": "deliberation"
-                            })
-                        )
-                        
-                        from backend.agents.deliberation import run_deliberation
-                        await run_deliberation(session_id, store=store)
-                        
-                        await websocket.send_text(
-                            json.dumps({
-                                "type": "status",
-                                "message": "All interviews and analysis complete!",
-                                "phase": "complete",
-                                "final": True
-                            })
-                        )
-                        
-                        logger.info("Full pipeline completed for session=%s", session_id)
-                    except Exception as e:
-                        logger.error("Pipeline continuation error: session=%s %s", session_id, e)
-                        try:
-                            await websocket.send_text(
-                                json.dumps({"type": "error", "message": f"Pipeline error: {str(e)}"})
-                            )
-                        except Exception:
-                            pass
+
+                if interview_completed:
+                    logger.info(
+                        "Interview marked COMPLETE by Sam: session=%s", session_id
+                    )
 
         except (genai.errors.ClientError, genai.errors.ServerError) as e:
             api_err = translate_gemini_error(e)
             logger.error("Gemini Live API error: session=%s %s", session_id, api_err)
             try:
-                await websocket.send_text(
-                    json.dumps({"type": "error", "message": api_err.message})
-                )
+                await websocket.send_text(json.dumps({"type": "error", "message": api_err.message}))
             except Exception:
                 pass
 
@@ -337,46 +261,37 @@ class GoogleProvider(LLMProvider):
                         logger.info("Audio stream ended: session=%s", session_id)
                         break
 
+                    elif msg_type == "end_stream_mic":
+                        # User muted — flush Gemini's VAD buffer so it processes
+                        # any speech it captured before the mic was stopped.
+                        await gemini_session.send_realtime_input(audio_stream_end=True)
+                        logger.info("Mic muted — audioStreamEnd sent: session=%s", session_id)
+                        # Don't break — keep the WS alive for the next unmute
+
                     elif msg_type == "slide_change":
                         slide_index = ctrl.get("index", 0)  # 0-based from frontend
                         slide_total = ctrl.get("total", "?")
 
-                        # Look up metadata for this slide (list is 0-indexed, metadata index field is 1-based)
                         _meta = slide_metadata or []
-                        slide_data = _meta[slide_index] if _meta and slide_index < len(_meta) else {}
+                        slide_data = (
+                            _meta[slide_index] if _meta and slide_index < len(_meta) else {}
+                        )
                         slide_title = slide_data.get("title", f"Slide {slide_index + 1}")
-                        slide_text = slide_data.get("extracted_text", "").strip()
+                        slide_text = (
+                            slide_data.get("content_text") or slide_data.get("extracted_text") or ""
+                        ).strip()
 
-                        # CRITICAL: Make the slide change UNMISSABLE by being extremely explicit.
-                        # SAM MUST understand this is a mandatory context switch overriding all previous content.
-                        context_parts = [
-                            "",
-                            "=" * 80,
-                            f"⚠️  MANDATORY CONTEXT SWITCH: FOUNDER NOW ON SLIDE {slide_index + 1} OF {slide_total}",
-                            "=" * 80,
-                            f"SLIDE TITLE: {slide_title}",
-                            "",
-                        ]
+                        # Concise context injection — keeps model fast
+                        context_msg = (
+                            f"[SLIDE CHANGE: Now on Slide {slide_index + 1}/{slide_total} — "
+                            f"{slide_title}]"
+                        )
                         if slide_text:
-                            context_parts.append(f"SLIDE CONTENT ON SCREEN:\n{slide_text}")
-                        context_parts += [
-                            "",
-                            "RED_ALERT: CRITICAL RULE FOR THIS SLIDE:",
-                            "- Founder is NOW presenting ONLY this slide.",
-                            "- ANY claims they make are verified AGAINST ONLY THIS SLIDE's content.",
-                            "- If they say ANYTHING that contradicts the text above, INTERRUPT immediately.",
-                            "- This is your PRIMARY job for the next few minutes.",
-                            "",
-                            "--- DECK REFERENCE (all slides) ---",
-                        ]
-                        # Include a quick reference list of all slides so SAM knows what exists
-                        for slide in _meta:
-                            s_idx = slide.get("index", "?")
-                            s_title = slide.get("title", f"Slide {s_idx}")
-                            marker = " <<< CURRENT >>>" if s_idx == (slide_index + 1) else ""
-                            context_parts.append(f"  Slide {s_idx}: {s_title}{marker}")
-                        context_parts.append("=" * 80)
-                        context_msg = "\n".join(context_parts)
+                            context_msg += f"\n[SLIDE CONTENT: {slide_text[:800]}]"
+                        context_msg += (
+                            "\n[Verify the founder's claims against this slide. "
+                            "Interrupt immediately on any discrepancy.]"
+                        )
 
                         await gemini_session.send_realtime_input(text=context_msg)
                         logger.info(
@@ -405,7 +320,7 @@ class GoogleProvider(LLMProvider):
         store: Any,
     ) -> bool:
         """Forward Gemini audio + transcripts to the browser.
-        
+
         Returns True if interview was marked INTERVIEW_COMPLETE, False otherwise.
         """
         from fastapi import WebSocketDisconnect
@@ -440,19 +355,11 @@ class GoogleProvider(LLMProvider):
                     if content.output_transcription and content.output_transcription.text:
                         text = content.output_transcription.text
                         output_transcript_buf.append(text)
-                        
+
                         # Check if Sam said interview is complete
                         if "INTERVIEW_COMPLETE" in text:
                             interview_complete = True
-                        
-                        # DEBUG: Log topic markers
-                        if "[ASKING_TOPIC:" in text:
-                            import re
-                            topic_match = re.search(r'\[ASKING_TOPIC:\s*([^\]]+)\]', text)
-                            if topic_match:
-                                topic = topic_match.group(1).strip()
-                                logger.info("📌 SAM ASKING ABOUT: %s (session=%s)", topic, session_id)
-                        
+
                         await websocket.send_text(
                             json.dumps(
                                 {
@@ -479,17 +386,24 @@ class GoogleProvider(LLMProvider):
                             input_transcript_buf.clear()
 
                         await websocket.send_text(json.dumps({"type": "turn_complete"}))
-                        
-                        # Check if interview should end
+
+                        # If Sam signalled INTERVIEW_COMPLETE, notify frontend
+                        # but do NOT call audio_stream_end here (conflicts with _send_loop).
+                        # The user can end via the End Call button; this is a courtesy signal.
                         if interview_complete:
                             logger.info("Sam marked interview complete: session=%s", session_id)
-                            await gemini_session.send_realtime_input(audio_stream_end=True)
+                            try:
+                                await websocket.send_text(
+                                    json.dumps({"type": "interview_complete"})
+                                )
+                            except Exception:
+                                pass
                             break
 
                     if content.interrupted:
                         output_transcript_buf.clear()
                         await websocket.send_text(json.dumps({"type": "interrupted"}))
-                
+
                 # If interview marked complete, break outer while loop too
                 if interview_complete:
                     break
@@ -503,5 +417,5 @@ class GoogleProvider(LLMProvider):
         except Exception as e:
             logger.error("_receive_loop error: %s", e)
             raise
-        
+
         return interview_complete

@@ -222,9 +222,16 @@ class SessionState(_Base):
     debate_rounds: list[DebateRound] = []
     final_verdict: FinalVerdict | None = None
 
+    # Deck / slide data (populated by DeckAnalystAgent after upload)
+    # Slide PNGs are stored on disk (core.slide_store) — NOT in session state.
+    # slide_count is the only in-state field needed to know how many slides exist.
+    # Per-slide text (for SAM's context) lives in deck_critique.slides[i].content_text.
+    slide_count: int = 0
+
     # Internal flags
     live_interview_active: bool = False
     deck_analysis_done: bool = False
+    pitch_submitted_at: float | None = None  # Unix timestamp, set after text pitch
     market_intel_status: TaskStatus = Field(default_factory=TaskStatus)
     deliberation_status: TaskStatus = Field(default_factory=TaskStatus)
 

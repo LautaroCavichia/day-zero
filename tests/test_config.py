@@ -35,7 +35,7 @@ def test_default_values():
     assert s.gemini_flash_model == "gemini-2.5-flash"
     assert s.debate_rounds == 3
     assert s.deck_render_dpi == 150
-    assert s.live_api_input_sample_rate == 16000
+    assert s.live_api_input_sample_rate == 24000
     assert s.live_api_output_sample_rate == 24000
     assert s.max_upload_bytes == 50 * 1024 * 1024
     assert s.port == 8080
