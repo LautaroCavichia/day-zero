@@ -46,7 +46,7 @@ def test_empty_roundtrip():
 
 def test_sample_rates():
     """Verify the constants have the expected values from config defaults."""
-    assert LIVE_API_INPUT_SAMPLE_RATE == 16000
+    assert LIVE_API_INPUT_SAMPLE_RATE == 24000
     assert LIVE_API_OUTPUT_SAMPLE_RATE == 24000
 
 

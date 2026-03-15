@@ -112,14 +112,7 @@ def _build_deck_system_context(slide_metadata: list) -> str:
         return ""
 
     lines = [
-        "\n\n" + "=" * 80,
-        "🔴 PITCH DECK VERIFICATION PROTOCOL — NON-NEGOTIABLE",
-        "=" * 80,
-        "",
-        "The founder has uploaded their pitch deck. You MUST verify EVERY factual claim",
-        "they make against the deck content in REAL-TIME.",
-        "",
-        "BELOW IS THE COMPLETE DECK CONTENT:",
+        "\n\n--- PITCH DECK CONTENT (VERIFY ALL CLAIMS IN REAL-TIME) ---",
         "",
     ]
 
@@ -134,35 +127,13 @@ def _build_deck_system_context(slide_metadata: list) -> str:
         lines.append("")
 
     lines += [
-        "=" * 80,
-        "⚠️  YOUR JOB — MANDATORY DISCREPANCY DETECTION:",
-        "=" * 80,
+        "--- VERIFICATION RULES ---",
+        "- Memorize key facts: names, numbers, timelines, claims.",
+        "- Compare the founder's spoken words to the deck in real-time.",
+        "- On ANY discrepancy, interrupt immediately:",
+        '  "Hold on — your deck says [X] but you just told me [Y]. Which is it?"',
+        "- Zero tolerance for contradictions. Be direct (not rude).",
         "",
-        "1. MEMORY: Above are ALL the slides. Memorize key facts: company name, numbers, claims.",
-        "",
-        "2. REAL-TIME VERIFICATION:",
-        "   - As the founder speaks, IMMEDIATELY compare their words to the deck.",
-        "   - EVERY number, company name, timeline, achievement, goal = verify.",
-        "",
-        "3. INTERRUPT ON ANY DISCREPANCY — NO EXCEPTIONS:",
-        "   Examples (you MUST interrupt on these):",
-        '   - Founder: "We raised $5M"  |  Deck says: "$2M"  →  INTERRUPT IMMEDIATELY',
-        '   - Founder: "Our company is TechStart"  |  Deck says: "InnovateLabs"  →  INTERRUPT IMMEDIATELY',
-        '   - Founder: "We have 100 customers"  |  Deck says: "10 customers"  →  INTERRUPT IMMEDIATELY',
-        "",
-        "4. HOW TO INTERRUPT:",
-        "   Use a SHARP, direct phrase like:",
-        '   "Hold on—you just said [X], but your deck says [Y]. What\'s going on?"',
-        '   Or: "Wait, I see [Y] in your deck but you\'re telling me [X]. Clarify that."',
-        "",
-        "5. TONE:",
-        "   - Be direct and firm (not rude).",
-        "   - Treat discrepancies as red flags that need immediate resolution.",
-        "   - Do NOT let ANY contradiction slide. ZERO tolerance.",
-        "",
-        "=" * 80,
-        "START INTERVIEW NOW. STAY ALERT FOR DISCREPANCIES AT ALL TIMES.",
-        "=" * 80,
     ]
     return "\n".join(lines)
 
