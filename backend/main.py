@@ -343,6 +343,82 @@ async def upload_deck(
     return {"status": "ok", "deck_critique": critique.model_dump()}
 
 
+# ── Testing: Resume pipeline after interview ────────────────────────────────
+
+
+@app.get("/api/test-pipeline-resume/{session_id}", tags=["Testing"])
+async def test_pipeline_resume(session_id: str):
+    """
+    [DEBUG/TESTING] Resume the pipeline (market + deliberation) for this session.
+    
+    Use this to test the full pipeline without spending time on the live interview.
+    If pitch_context is missing, generates example data.
+    
+    Returns: {"status": "ok", "message": "Pipeline resumed..."}
+    """
+    _require_api_key()
+    
+    state = await ss.default_store.require_state(session_id)
+    
+    # Check if pitch_context has real content (non-empty values)
+    existing_ctx = state.get("pitch_context") or {}
+    has_real_content = any(v for v in existing_ctx.values() if v)
+    
+    if not has_real_content:
+        # Store example pitch using the exact field names market_validator expects
+        example_pitch = {
+            "company_name": "CortaDoc",
+            "one_liner": "AI platform that reviews contracts in 30 seconds for $5",
+            "problem": "Small businesses lose $50K-150K/year in legal disputes from contracts they don't understand. Lawyers cost $300-500/hour.",
+            "solution": "LLM fine-tuned on 10,000 real dispute cases. Identifies risks, flags bad clauses, explains in plain English. 30-second review for $5.",
+            "target_customer": "SMBs with 20-100 employees signing 5+ contracts/month, e.g. SaaS companies, agencies, freelancers.",
+            "business_model": "$49/month subscription (10 reviews). $199/month for teams. Usage-based API for larger companies.",
+            "traction": "$2.5K MRR, 5 paying pilots including TechStart Ventures. 120 contracts reviewed. 1 annual renewal.",
+            "team": "Founder: 8 years at Orrick law firm. Co-founder: former Stripe legal ops manager.",
+            "ask": "$800K seed: $400K model training, $200K sales, $200K engineering.",
+            "stage": "Pre-seed, post-revenue",
+        }
+        await ss.default_store.update(session_id, {
+            "pitch_context": example_pitch,
+            "pitch_submitted_at": time.time()
+        })
+        logger.info("Generated example pitch_context for testing: session=%s", session_id)
+    else:
+        logger.info("Using existing pitch_context (has content): session=%s company=%s",
+                    session_id, existing_ctx.get("company_name") or existing_ctx.get("title", "?"))
+    
+    # Trigger market analysis in background
+    asyncio.create_task(_run_market_and_deliberation_bg(session_id))
+    
+    
+    return {"status": "ok", "message": "Pipeline resumed - market analysis + deliberation running"}
+
+
+async def _run_market_and_deliberation_bg(session_id: str) -> None:
+    """Run market validation + deliberation in background."""
+    try:
+        logger.info("Starting test pipeline: session=%s", session_id)
+        
+        # Double-check pitch_context has real content
+        state = await ss.default_store.get_state(session_id)
+        pitch_ctx = (state or {}).get("pitch_context") or {}
+        has_content = any(v for v in pitch_ctx.values() if v)
+        if not has_content:
+            logger.error("pitch_context empty/missing before market analysis: session=%s keys=%s",
+                         session_id, list(pitch_ctx.keys()))
+            raise Exception("pitch_context is empty — no real values found")
+        
+        logger.info("pitch_context found — company=%s", pitch_ctx.get("company_name") or pitch_ctx.get("title", "?"))
+        
+        await validate_market(session_id, store=ss.default_store)
+        logger.info("Market analysis complete: session=%s", session_id)
+        
+        await run_deliberation(session_id, store=ss.default_store)
+        logger.info("Deliberation complete: session=%s", session_id)
+    except Exception as e:
+        logger.error("Test pipeline error: session=%s %s", session_id, e, exc_info=True)
+
+
 # ── Market validation ───────────────────────────────────────────────────────
 
 

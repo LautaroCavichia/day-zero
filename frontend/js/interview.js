@@ -172,6 +172,10 @@ function _handleTextEvent(msg) {
       break;
     case 'transcript_output':
       _callbacks.onTranscript?.('Sam', msg.text);
+      // Stop mic as soon as SAM says INTERVIEW_COMPLETE so no more audio is sent
+      if (msg.text && msg.text.includes('INTERVIEW_COMPLETE')) {
+        stopCapture();
+      }
       break;
     case 'turn_complete':
       _callbacks.onStatus?.('turn_complete');
@@ -181,6 +185,21 @@ function _handleTextEvent(msg) {
       break;
     case 'pong':
       // Heartbeat response from server — no-op
+      break;
+    case 'status':
+      if (msg.phase === 'market_validation') {
+        _callbacks.onStatus?.('Analyzing market...');
+        showToast('Interview complete! Running market analysis...', 'info');
+      } else if (msg.phase === 'deliberation') {
+        _callbacks.onStatus?.('VC panel deliberating...');
+        showToast('Market analysis done! Running VC deliberation...', 'info');
+      } else if (msg.final) {
+        _callbacks.onStatus?.('Complete!');
+        showToast('All analysis complete! Loading results...', 'ok');
+        _intentionalClose = true;
+        _teardown();
+        if (_onEnded) _onEnded();
+      }
       break;
     case 'error':
       console.error('Interview server error:', msg.message);

@@ -222,102 +222,300 @@ def _pptx_to_pdf_bytes(pptx_bytes: bytes) -> bytes:
             return f.read()
 
 
+def _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img_canvas, io_mod, Image_mod):
+    """Recursively extract and paste all images found inside *shape*.
+
+    Handles:
+    - Regular PICTURE shapes (shape_type 13)
+    - GROUP shapes (shape_type 6) — walks children recursively
+    - Any shape whose XML contains a <blipFill> element (covers SmartArt,
+      diagrams, background fills, etc.)
+
+    Returns True if at least one image was pasted.
+    """
+    from lxml import etree
+
+    pasted = False
+
+    # ── 1. Regular picture shape ──────────────────────────────────────────
+    if shape.shape_type == 13:
+        try:
+            pic_bytes = shape.image.blob
+            pic = Image_mod.open(io_mod.BytesIO(pic_bytes)).convert("RGBA")
+            left_px = int(shape.left  / slide_w_emu * W)
+            top_px  = int(shape.top   / slide_h_emu * H)
+            w_px    = int(shape.width  / slide_w_emu * W)
+            h_px    = int(shape.height / slide_h_emu * H)
+            if w_px > 0 and h_px > 0:
+                pic = pic.resize((w_px, h_px), Image_mod.LANCZOS)
+                img_canvas.paste(pic.convert("RGB"), (left_px, top_px))
+                pasted = True
+        except Exception:
+            pass
+
+    # ── 2. Group shape — recurse into children ────────────────────────────
+    elif shape.shape_type == 6:
+        try:
+            for child in shape.shapes:
+                if _extract_images_from_shape(child, slide_w_emu, slide_h_emu, W, H, img_canvas, io_mod, Image_mod):
+                    pasted = True
+        except Exception:
+            pass
+
+    # ── 3. Any shape with an embedded blipFill (SmartArt, diagrams, etc.) ─
+    if not pasted and shape.shape_type not in (13, 6):
+        try:
+            # namespace-agnostic search for blipFill with an r:embed attribute
+            ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+                  "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+            blips = shape.element.findall(".//a:blipFill/a:blip", ns)
+            r_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            for blip in blips:
+                r_embed = blip.get(f"{{{r_ns}}}embed")
+                if r_embed:
+                    rel = shape.part.rels.get(r_embed)
+                    if rel and hasattr(rel, "target_part"):
+                        pic_bytes = rel.target_part.blob
+                        pic = Image_mod.open(io_mod.BytesIO(pic_bytes)).convert("RGBA")
+                        left_px = int(shape.left  / slide_w_emu * W)
+                        top_px  = int(shape.top   / slide_h_emu * H)
+                        w_px    = int(shape.width  / slide_w_emu * W)
+                        h_px    = int(shape.height / slide_h_emu * H)
+                        if w_px > 0 and h_px > 0:
+                            pic = pic.resize((w_px, h_px), Image_mod.LANCZOS)
+                            img_canvas.paste(pic.convert("RGB"), (left_px, top_px))
+                            pasted = True
+        except Exception:
+            pass
+
+    return pasted
+
+
 def _pptx_to_images_native(pptx_bytes: bytes) -> list:
     """Convert PPTX bytes to PIL Images using python-pptx + Pillow.
 
-    Used as a fallback when LibreOffice is not available.  Renders each slide
-    as a 1280x720 white canvas with all text content laid out top-to-bottom —
-    enough fidelity for Gemini to read text and perform analysis.
+    Used as a fallback when LibreOffice is not available.  Renders actual slide
+    images (picture shapes) at their proportional positions on the canvas, then
+    overlays text on top.  This gives Gemini visual context even for image-heavy
+    slides that have little text.
     """
     import io
     import traceback as _tb
 
     from PIL import Image, ImageDraw, ImageFont
     from pptx import Presentation
+    from pptx.util import Inches, Pt
 
-    W, H = 1280, 720
-    PADDING = 50
+    W, H = 1280, 960  # Larger canvas for better text legibility
+    MIN_TEXT_CHARS = 80  # below this, slide is considered "image-heavy"
+    MARGIN = 60
 
-    # Resolve fonts — try common system paths, fall back to PIL default.
+    # Font resolution
     font_title = None
+    font_heading = None
     font_body = None
+    font_small = None
+
     for path in [
         "C:/Windows/Fonts/calibri.ttf",
         "C:/Windows/Fonts/arial.ttf",
         "C:/Windows/Fonts/segoeui.ttf",
-        "C:/Windows/Fonts/times.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/System/Library/Fonts/Helvetica.ttc",
     ]:
         try:
-            font_title = ImageFont.truetype(path, 36)
-            font_body = ImageFont.truetype(path, 20)
+            font_title = ImageFont.truetype(path, 44)
+            font_heading = ImageFont.truetype(path, 28)
+            font_body = ImageFont.truetype(path, 18)
+            font_small = ImageFont.truetype(path, 14)
             break
         except Exception:
             continue
 
-    # Pillow 10+ load_default() accepts a size parameter for a scalable font.
+    # Fallback fonts if no TrueType available
     if font_title is None:
         try:
-            font_title = ImageFont.load_default(size=36)
-            font_body = ImageFont.load_default(size=20)
+            font_title = ImageFont.load_default(size=44)
+            font_heading = ImageFont.load_default(size=28)
+            font_body = ImageFont.load_default(size=18)
+            font_small = ImageFont.load_default(size=14)
         except TypeError:
-            # Older Pillow — load_default takes no arguments
-            font_title = ImageFont.load_default()
-            font_body = ImageFont.load_default()
+            font_title = font_heading = font_body = font_small = ImageFont.load_default()
 
     prs = Presentation(io.BytesIO(pptx_bytes))
+    slide_w_emu = prs.slide_width   # EMUs
+    slide_h_emu = prs.slide_height  # EMUs
     images: list = []
 
     for slide_idx, slide in enumerate(prs.slides):
         try:
-            img = Image.new("RGB", (W, H), color=(255, 255, 255))
+            img = Image.new("RGB", (W, H), color=(250, 250, 250))
             draw = ImageDraw.Draw(img)
-            draw.rectangle([0, 0, W, 8], fill=(30, 100, 200))
 
-            title_texts: list[str] = []
-            body_texts: list[str] = []
+            # Top accent bar
+            draw.rectangle([0, 0, W, 10], fill=(25, 100, 200))
+
+            # ── Phase 1: composite all images (pictures, groups, diagrams) ──
+            has_images = False
+            for shape in slide.shapes:
+                if _extract_images_from_shape(shape, slide_w_emu, slide_h_emu, W, H, img, io, Image):
+                    has_images = True
+
+            # If images were pasted, add a semi-transparent text strip at the top
+            # so text remains legible over the image background
+            if has_images:
+                overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+                ov_draw = ImageDraw.Draw(overlay)
+                ov_draw.rectangle([0, 0, W, 220], fill=(255, 255, 255, 190))
+                img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+                draw = ImageDraw.Draw(img)
+
+            # ── Phase 2: extract all text from all shapes ─────────────────────
+            all_text_blocks: list[tuple[str, str]] = []  # (text, level: "title"|"heading"|"body"|"small")
 
             for shape in slide.shapes:
-                try:
-                    has_tf = getattr(shape, "has_text_frame", False)
-                    if not has_tf:
-                        continue
+                shape_type = shape.shape_type
+                text = ""
+
+                # Text frames
+                if hasattr(shape, "text_frame") and shape.has_text_frame:
                     text = shape.text_frame.text.strip()
-                    if not text:
-                        continue
-                    ph = getattr(shape, "placeholder_format", None)
-                    if ph is not None and getattr(ph, "idx", -1) == 0:
-                        title_texts.append(text)
-                    else:
-                        body_texts.append(text)
+                    if text:
+                        # Try to detect if this is a title (placeholder index 0)
+                        # placeholder_format raises ValueError on non-placeholder shapes
+                        try:
+                            ph = shape.placeholder_format
+                            ph_idx = ph.idx if ph is not None else -1
+                        except (ValueError, AttributeError):
+                            ph_idx = -1
+                        level = "title" if ph_idx == 0 else "heading"
+                        all_text_blocks.append((text, level))
+
+                # Alt-text / description (present on diagrams, charts, SmartArt)
+                try:
+                    nvpr = shape.element.find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr",
+                                              shape.element.nsmap) or \
+                           shape.element.find(".//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr",
+                                              shape.element.nsmap)
+                    # Try both pml and dml namespaces for cNvPr
+                    cNvPr = (shape.element.find(
+                        ".//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr") or
+                        shape.element.find(
+                        ".//{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr"))
+                    if cNvPr is None:
+                        # try the pic/sp namespace
+                        cNvPr = shape.element.find(".//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}cNvPr")
+                    if cNvPr is None:
+                        # generic xpath descent
+                        for el in shape.element.iter():
+                            if el.tag.endswith("}cNvPr") or el.tag == "cNvPr":
+                                cNvPr = el
+                                break
+                    if cNvPr is not None:
+                        descr = cNvPr.get("descr", "").strip()
+                        if descr and descr not in text:
+                            all_text_blocks.append((f"[Alt-text: {descr}]", "small"))
                 except Exception:
-                    continue  # skip individual bad shapes
+                    pass
 
-            y = PADDING
-            for text in title_texts:
-                y = _draw_wrapped(draw, text, font_title, (30, 80, 180), PADDING, y, W - PADDING * 2)
-                y += 12
-            if title_texts:
-                draw.line([PADDING, y, W - PADDING, y], fill=(200, 200, 200), width=1)
-                y += 16
+                # Charts — note their presence
+                if shape_type == 3:
+                    all_text_blocks.append(("[Chart]", "small"))
 
-            for text in body_texts:
-                for raw_line in text.split("\n"):
-                    stripped = raw_line.strip()
-                    if not stripped:
-                        y += 6
-                        continue
-                    y = _draw_wrapped(
-                        draw, "• " + stripped, font_body, (50, 50, 50), PADDING, y, W - PADDING * 2
-                    )
-                    y += 4
-                    if y > H - 40:
-                        break
-                y += 8
-                if y > H - 40:
+                # Group shapes — collect text from children recursively
+                if shape_type == 6:
+                    try:
+                        def _collect_group_text(group, blocks):
+                            for child in group.shapes:
+                                if hasattr(child, "text_frame") and child.has_text_frame:
+                                    t = child.text_frame.text.strip()
+                                    if t:
+                                        blocks.append((t, "body"))
+                                if child.shape_type == 6:
+                                    _collect_group_text(child, blocks)
+                        _collect_group_text(shape, all_text_blocks)
+                    except Exception:
+                        pass
+
+                # Tables
+                if hasattr(shape, "table"):
+                    try:
+                        table = shape.table
+                        rows = []
+                        for row in table.rows:
+                            cells = []
+                            for cell in row.cells:
+                                cell_text = cell.text.strip()
+                                if cell_text:
+                                    cells.append(cell_text)
+                            if cells:
+                                rows.append(" | ".join(cells))
+                        if rows:
+                            table_text = "\nTable:\n" + "\n".join(rows)
+                            all_text_blocks.append((table_text, "body"))
+                    except Exception:
+                        pass
+
+                # Notes
+                if hasattr(slide, "notes_slide"):
+                    try:
+                        notes = slide.notes_slide.notes_text_frame.text.strip()
+                        if notes:
+                            all_text_blocks.append(("Notes: " + notes, "small"))
+                    except Exception:
+                        pass
+
+            # ── Phase 3: render text overlay ──────────────────────────────────
+            total_text = "".join(t for t, _ in all_text_blocks)
+            image_heavy = has_images and len(total_text) < MIN_TEXT_CHARS
+
+            if image_heavy:
+                # For image-heavy slides: add a label at the bottom so Gemini
+                # knows there's minimal text and should rely on the visual
+                draw.rectangle([0, H - 40, W, H], fill=(25, 100, 200))
+                draw.text(
+                    (MARGIN, H - 30),
+                    "[Image-heavy slide — visual above is the primary content]",
+                    fill=(255, 255, 255),
+                    font=font_small,
+                )
+
+            # Render extracted text blocks (always, even on image-heavy slides)
+            y = MARGIN + 20
+            max_y = H - (50 if image_heavy else MARGIN + 20)
+
+            for text, level in all_text_blocks:
+                if y > max_y:
+                    draw.text((MARGIN, max_y - 30), "...", fill=(150, 150, 150), font=font_small)
                     break
+
+                if level == "title":
+                    font = font_title
+                    color = (25, 60, 150)
+                    spacing = 12
+                elif level == "heading":
+                    font = font_heading
+                    color = (40, 80, 180)
+                    spacing = 8
+                elif level == "small":
+                    font = font_small
+                    color = (80, 80, 80)
+                    spacing = 4
+                else:
+                    font = font_body
+                    color = (50, 50, 50)
+                    spacing = 6
+
+                for line in text.split("\n"):
+                    if not line.strip():
+                        y += 8
+                        continue
+                    y = _draw_wrapped(draw, line, font, color, MARGIN, y, W - MARGIN * 2, spacing)
+                    if y > max_y:
+                        break
+
+                y += 12  # Gap between blocks
 
             images.append(img)
 
@@ -328,7 +526,6 @@ def _pptx_to_images_native(pptx_bytes: bytes) -> list:
                 exc,
                 _tb.format_exc(),
             )
-            # Always append something so slide indices stay aligned
             images.append(Image.new("RGB", (W, H), color=(240, 240, 240)))
 
     return images
@@ -339,31 +536,41 @@ def _draw_wrapped(draw, text, font, color, x, y, max_width, line_spacing=6):
     words = text.split()
     if not words:
         return y
+
     lines: list[str] = []
     current = ""
+
     for word in words:
         candidate = (current + " " + word).strip()
         try:
             bbox = draw.textbbox((0, 0), candidate, font=font)
             width = bbox[2] - bbox[0]
         except Exception:
-            width = len(candidate) * 10  # rough fallback
+            # Fallback estimation if textbbox fails
+            width = len(candidate) * 12
+
         if width <= max_width or not current:
             current = candidate
         else:
-            lines.append(current)
+            if current:
+                lines.append(current)
             current = word
+
     if current:
         lines.append(current)
+
     for line in lines:
         try:
             draw.text((x, y), line, fill=color, font=font)
             bbox = draw.textbbox((x, y), line, font=font)
             line_h = bbox[3] - bbox[1]
         except Exception:
+            # Fallback if text rendering fails
             draw.text((x, y), line, fill=color)
-            line_h = 18
+            line_h = 24
+
         y += line_h + line_spacing
+
     return y
 
 

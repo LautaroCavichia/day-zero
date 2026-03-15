@@ -309,6 +309,7 @@
     <!-- Controls row -->
     <div class="interview-controls">
       <button class="btn btn-primary" id="start-interview-btn">Start Interview</button>
+      <button class="btn btn-purple" id="skip-interview-btn" title="Skip interview and run full market analysis + deliberation pipeline">⚡ Skip Interview</button>
       <button class="btn btn-danger hidden" id="stop-interview-btn">Stop Interview</button>
       <span class="interview-status" id="interview-status-text"></span>
     </div>
@@ -490,6 +491,7 @@
   const vizEl        = document.getElementById('audio-viz');
   const statusText   = document.getElementById('interview-status-text');
   const startBtn     = document.getElementById('start-interview-btn');
+  const skipBtn      = document.getElementById('skip-interview-btn');
   const stopBtn      = document.getElementById('stop-interview-btn');
 
   startBtn.addEventListener('click', async () => {
@@ -547,6 +549,33 @@
       });
     } catch (err) {
       alert('Could not start interview: ' + err.message);
+    }
+  });
+
+  skipBtn.addEventListener('click', async () => {
+    if (!sessionId) { alert('Create a session first'); return; }
+    resetPipeline();
+    
+    statusText.textContent = 'Starting pipeline...';
+    skipBtn.disabled = true;
+    startBtn.disabled = true;
+    
+    try {
+      const r = await fetch(`/api/test-pipeline-resume/${sessionId}`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || r.statusText);
+      
+      statusText.textContent = 'Market analysis + deliberation running...';
+      console.log('✅ Pipeline started (skipped interview)', data);
+      
+      // Watch the pipeline progress
+      setTimeout(() => startPipelineWatch(sessionId), 1000);
+    } catch (err) {
+      alert('Could not skip interview: ' + err.message);
+      statusText.textContent = '';
+    } finally {
+      skipBtn.disabled = false;
+      startBtn.disabled = false;
     }
   });
 
