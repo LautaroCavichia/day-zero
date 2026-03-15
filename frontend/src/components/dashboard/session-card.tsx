@@ -515,7 +515,7 @@ export default function SessionCard({ summary, onDelete }: SessionCardProps) {
   return (
     <div
       onClick={handleOpen}
-      className="group relative rounded-xl border border-[#272727] bg-[#0d0d0d] hover:border-[#343434] hover:bg-[#101010] transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative rounded-2xl border border-[#272727] bg-[#0d0d0d] hover:border-[#343434] hover:bg-[#101010] transition-all duration-200 cursor-pointer overflow-hidden"
       style={{
         boxShadow: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 4px 20px rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.3)",
       }}
@@ -650,7 +650,7 @@ export function NewSessionCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group relative rounded-xl border border-dashed border-[#2e2e2e] bg-[#0a0a0a] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/[0.025] transition-all duration-250 cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-4 p-6"
+      className="group relative rounded-2xl border border-dashed border-[#2e2e2e] bg-[#0a0a0a] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/[0.025] transition-all duration-250 cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-4 p-6"
       style={{
         minHeight: 160,
         boxShadow: "0 1px 0 0 rgba(255,255,255,0.025) inset, 0 4px 20px rgba(0,0,0,0.4)",
@@ -658,7 +658,7 @@ export function NewSessionCard({ onClick }: { onClick: () => void }) {
     >
       {/* Glow on hover */}
       <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-xl"
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl"
         style={{
           background:
             "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(200,255,0,0.04) 0%, transparent 70%)",

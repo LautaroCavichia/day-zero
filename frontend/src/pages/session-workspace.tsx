@@ -322,19 +322,16 @@ export default function SessionWorkspace() {
               <button
                 onClick={() => handleSelectPhase(prevPhase)}
                 className="
-                  fixed left-3 z-50 flex items-center justify-center
-                  w-8 h-8 rounded-full
-                  bg-[#111111]/80 backdrop-blur-sm
-                  border border-[#2a2a2a]
-                  text-[#505050] hover:text-[#c0c0c0] hover:border-[#3e3e3e]
-                  transition-all duration-200 hover:scale-105
-                  shadow-[0_2px_12px_rgba(0,0,0,0.4)]
+                  fixed left-4 z-50 flex items-center justify-center
+                  text-chartreuse hover:text-chartreuse-hover
+                  transition-all duration-200 hover:scale-110
+                  drop-shadow-[0_0_8px_rgba(200,255,0,0.3)]
                 "
-                style={{ top: "calc(3.5rem + 3.5rem + 50vh - 1rem)" }}
+                style={{ top: "calc(3.5rem + 3.5rem + 50vh - 1.25rem)" }}
                 title="Previous phase"
                 aria-label="Previous phase"
               >
-                <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
+                <ChevronLeft className="w-10 h-10" strokeWidth={1.5} />
               </button>
             )}
 
@@ -343,19 +340,16 @@ export default function SessionWorkspace() {
               <button
                 onClick={() => handleSelectPhase(nextPhase)}
                 className="
-                  fixed right-3 z-50 flex items-center justify-center
-                  w-8 h-8 rounded-full
-                  bg-[#111111]/80 backdrop-blur-sm
-                  border border-[#2a2a2a]
-                  text-[#505050] hover:text-[#C8FF00] hover:border-[#C8FF00]/30
-                  transition-all duration-200 hover:scale-105
-                  shadow-[0_2px_12px_rgba(0,0,0,0.4)]
+                  fixed right-4 z-50 flex items-center justify-center
+                  text-chartreuse hover:text-chartreuse-hover
+                  transition-all duration-200 hover:scale-110
+                  drop-shadow-[0_0_8px_rgba(200,255,0,0.3)]
                 "
-                style={{ top: "calc(3.5rem + 3.5rem + 50vh - 1rem)" }}
+                style={{ top: "calc(3.5rem + 3.5rem + 50vh - 1.25rem)" }}
                 title="Next phase"
                 aria-label="Next phase"
               >
-                <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
+                <ChevronRight className="w-10 h-10" strokeWidth={1.5} />
               </button>
             )}
           </>

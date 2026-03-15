@@ -214,7 +214,9 @@ function PersonaRoundCard({ persona, round, roundIndex, isLast, isRunning }: Per
   const citedSources = data.cited_sources ?? [];
 
   return (
-    <div className={`rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] overflow-hidden`}>
+    <div className={`rounded-2xl border border-[#282828] bg-[#131313] overflow-hidden`}
+      style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+    >
       {/* Header */}
       <button
         onClick={() => setExpanded((v) => !v)}
@@ -306,7 +308,9 @@ function PersonaColumn({
       className={`flex flex-col gap-3 anim-hidden ${inView ? "anim-fade-up" : ""}`}
     >
       {/* Column header */}
-      <div className={`rounded-xl border ${cfg.colBg} p-4 flex flex-col gap-2`}>
+      <div className={`rounded-2xl border ${cfg.colBg} p-4 flex flex-col gap-2`}
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.dotBg}`} />
@@ -370,7 +374,8 @@ function OverviewPanel({ rounds }: { rounds: DebateRound[] }) {
   return (
     <div
       ref={ref as React.RefObject<HTMLDivElement>}
-      className={`rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 anim-hidden ${inView ? "anim-fade-up" : ""}`}
+      className={`rounded-2xl border border-[#282828] bg-[#131313] p-5 anim-hidden ${inView ? "anim-fade-up" : ""}`}
+      style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 32px rgba(0,0,0,0.5)" }}
     >
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
@@ -511,8 +516,8 @@ function LiveRoundRow({
           return (
             <div
               key={persona}
-              className={`rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] border-l-2 ${cfg.borderClass} p-4 flex flex-col gap-2 anim-hidden ${inView ? "anim-fade-up" : ""}`}
-              style={{ animationDelay: `${i * 60}ms` }}
+              className={`rounded-2xl border border-[#282828] bg-[#131313] border-l-2 ${cfg.borderClass} p-4 flex flex-col gap-2 anim-hidden ${inView ? "anim-fade-up" : ""}`}
+              style={{ animationDelay: `${i * 60}ms`, boxShadow: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -686,18 +691,18 @@ export default function DeliberationComponent({
   // ── Running state ──────────────────────────────────────────────────────────
   if (isRunning) {
     return (
-      <div className="flex flex-col gap-6 pb-8 max-w-7xl mx-auto w-full">
+      <div className="flex flex-col gap-8 pb-10 max-w-7xl mx-auto w-full">
         {/* Header */}
         <div className="page-load-item" style={{ animationDelay: "0ms" }}>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
+              <p className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/40 uppercase mb-2">
                 Phase 4 — VC Deliberation
               </p>
-              <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">VC Deliberation</h1>
-              <p className="text-sm text-[#5a5a5a] mt-0.5">3-round adversarial panel debate</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#f0f0f0] font-heading tracking-tight leading-tight">VC Deliberation</h1>
+              <p className="text-sm text-[#5a5a5a] mt-1.5 leading-relaxed">3-round adversarial panel debate</p>
             </div>
-            <span className="tag-pill tag-pill-neutral">Live</span>
+            <span className="tag-pill tag-pill-neutral mt-1 flex-shrink-0">Live</span>
           </div>
         </div>
 

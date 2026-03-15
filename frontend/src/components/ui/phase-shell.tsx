@@ -36,20 +36,20 @@ export function PhaseShell({
   isRerunning = false,
 }: PhaseShellProps) {
   return (
-    <div className="flex flex-col gap-6 pb-8 max-w-7xl mx-auto w-full">
+    <div className="flex flex-col gap-8 pb-10 max-w-7xl mx-auto w-full">
       {/* Page header */}
       <div className="page-load-item" style={{ animationDelay: "0ms" }}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             {phaseLabel && (
-              <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
+              <p className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/40 uppercase mb-2">
                 {phaseLabel}
               </p>
             )}
-            <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">{title}</h1>
-            <p className="text-sm text-[#5a5a5a] mt-0.5">{subtitle}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#f0f0f0] font-heading tracking-tight leading-tight">{title}</h1>
+            <p className="text-sm text-[#5a5a5a] mt-1.5 leading-relaxed">{subtitle}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pt-1 flex-shrink-0">
             {/* Re-run button */}
             {onRerun && (
               <button
@@ -77,14 +77,19 @@ export function PhaseShell({
       {/* What's Next card */}
       {continueLabel && onContinue && (
         <div className="page-load-item pt-2" style={{ animationDelay: "200ms" }}>
-          <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/40 p-5 flex items-center justify-between gap-4">
+          <div
+            className="rounded-2xl border border-[#1A3D28]/60 bg-[#0A1F12]/40 p-6 flex items-center justify-between gap-4"
+            style={{
+              boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 32px rgba(0,0,0,0.5), 0 0 60px rgba(200,255,0,0.03)",
+            }}
+          >
             <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-[10px] font-mono tracking-widest text-[#C8FF00]/60 uppercase">
+              <span className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/60 uppercase">
                 What's next
               </span>
-              <span className="text-sm font-semibold text-[#f0f0f0]">{continueLabel}</span>
+              <span className="text-base font-semibold text-[#f0f0f0] font-heading mt-0.5">{continueLabel}</span>
               {continueDescription && (
-                <span className="text-xs text-[#5a5a5a] leading-snug mt-0.5">
+                <span className="text-sm text-[#5a5a5a] leading-snug mt-1">
                   {continueDescription}
                 </span>
               )}
@@ -92,10 +97,10 @@ export function PhaseShell({
             <button
               onClick={onContinue}
               className="
-                flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg
+                flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl
                 bg-[#C8FF00] text-black text-sm font-semibold
                 hover:bg-[#D4FF33] transition-colors duration-150
-                active:scale-[0.98]
+                active:scale-[0.98] shadow-[0_0_30px_rgba(200,255,0,0.2)]
               "
             >
               Go

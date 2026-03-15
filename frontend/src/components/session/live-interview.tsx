@@ -85,7 +85,9 @@ function CoachingTipsPanel({ sessionId, active }: { sessionId: string; active: b
   const { tip, visible } = useCoachingTips(sessionId, active);
 
   return (
-    <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/40 p-4 min-h-[80px] flex flex-col gap-2">
+    <div className="rounded-2xl border border-[#1A3D28]/60 bg-[#0A1F12]/40 p-4 min-h-[80px] flex flex-col gap-2"
+      style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 2px 12px rgba(0,0,0,0.35)" }}
+    >
       <div className="flex items-center gap-1.5">
         <Lightbulb className="size-3 text-[#C8FF00]/70" strokeWidth={1.5} />
         <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
@@ -314,10 +316,10 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
       {/* ── Top header bar ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-shrink-0 pb-4 anim-hidden anim-fade-up">
         <div>
-          <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
+          <p className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/40 uppercase mb-2">
             Phase 1 — Live Interview
           </p>
-          <h2 className="text-xl font-semibold text-[#f0f0f0] font-heading">
+          <h2 className="text-2xl sm:text-3xl font-bold text-[#f0f0f0] font-heading tracking-tight leading-tight">
             Interview Complete
           </h2>
           {duration > 0 && (
@@ -371,8 +373,8 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
             ].map(({ icon, label, value }, i) => (
               <div
                 key={label}
-                className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] px-4 py-3 flex items-center gap-3 anim-hidden anim-fade-up"
-                style={{ animationDelay: `${i * 50}ms` }}
+                className="rounded-2xl border border-[#282828] bg-[#131313] px-4 py-3 flex items-center gap-3 anim-hidden anim-fade-up"
+                style={{ animationDelay: `${i * 50}ms`, boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
               >
                 <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-[#0A1F12] border border-[#1A3D28]/60 flex-shrink-0">
                   {icon}
@@ -386,7 +388,9 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
           </div>
 
           {/* Delivery scores */}
-          <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-100">
+          <div className="rounded-2xl border border-[#282828] bg-[#131313] p-4 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-100"
+            style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+          >
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Delivery</p>
               {overallDelivery != null && (
@@ -410,7 +414,9 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
 
           {/* Delivery insight */}
           {scores && (
-            <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/20 p-4 flex flex-col gap-2 anim-hidden anim-fade-up anim-delay-150">
+            <div className="rounded-2xl border border-[#1A3D28]/50 bg-[#0A1F12]/30 p-4 flex flex-col gap-2 anim-hidden anim-fade-up anim-delay-150"
+              style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+            >
               <div className="flex items-center gap-1.5">
                 <TrendingUp className="size-3 text-[#C8FF00]/60" strokeWidth={1.5} />
                 <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Insight</p>
@@ -431,7 +437,9 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
 
           {/* Sam's questions */}
           {stats.samTurns > 0 && (
-            <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-200">
+            <div className="rounded-2xl border border-[#282828] bg-[#131313] p-4 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-200"
+              style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <MessageSquare className="size-3 text-[#C8FF00]/60" strokeWidth={1.5} />
@@ -470,7 +478,9 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
           )}
 
           {/* Next step nudge */}
-          <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/30 p-4 flex flex-col gap-2.5 anim-hidden anim-fade-up">
+          <div className="rounded-2xl border border-[#1A3D28]/50 bg-[#0A1F12]/30 p-4 flex flex-col gap-2.5 anim-hidden anim-fade-up"
+            style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+          >
             <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Next Step</p>
             <p className="text-xs text-[#a0a0a0] leading-relaxed">
               Head to Deck Analysis to see slide-by-slide feedback and narrative scoring.
@@ -779,7 +789,9 @@ export default function LiveInterview({
         {/* Right: Voice + Transcript + Coaching */}
         <div className="w-[320px] flex-shrink-0 flex flex-col gap-4">
           {/* Voice channel */}
-          <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5">
+          <div className="rounded-2xl border border-[#282828] bg-[#131313] p-5"
+            style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+          >
             <VoiceChannel
               interviewStatus={interview.status}
               pipelineStatus={pipeline.status}

@@ -71,7 +71,7 @@ export default function VoiceChannel({
 
         <Orb
           hue={111}
-          hoverIntensity={0.35}
+          hoverIntensity={interviewStatus === "connected" ? 0.08 : 0.35}
           rotateOnHover={true}
           backgroundColor="#050505"
           audioLevel={isActive ? audioLevel : undefined}

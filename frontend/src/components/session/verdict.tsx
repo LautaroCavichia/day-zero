@@ -141,7 +141,8 @@ function ScoreBreakdownChart({ breakdown }: { breakdown: ScoreBreakdown }) {
   return (
     <div
       ref={ref as React.RefObject<HTMLDivElement>}
-      className={`rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/20 p-5 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
+      className={`rounded-2xl border border-[#1A3D28]/40 bg-[#0A1F12]/20 p-5 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
+      style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 32px rgba(0,0,0,0.5)" }}
     >
       <div className="flex items-center gap-2 mb-5">
         <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
@@ -182,7 +183,9 @@ function InvestmentThesis({ thesis }: { thesis: string }) {
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
-      <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5">
+      <div className="rounded-2xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-3">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
             <BookOpen className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
@@ -214,7 +217,9 @@ function StrengthsRisks({
       className={`grid grid-cols-2 gap-4 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
       {/* Strengths */}
-      <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5">
+      <div className="rounded-2xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
             <CheckCircle2 className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
@@ -234,7 +239,9 @@ function StrengthsRisks({
       </div>
 
       {/* Risks */}
-      <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-5">
+      <div className="rounded-2xl border border-red-900/30 bg-red-950/10 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-red-950/40 border border-red-900/30">
             <AlertCircle className="size-3 text-red-400" strokeWidth={1.5} />
@@ -266,7 +273,9 @@ function PivotRecommendation({ pivot }: { pivot: string }) {
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
-      <div className="rounded-xl border border-amber-900/30 bg-[#1a1400]/40 p-5">
+      <div className="rounded-2xl border border-amber-900/30 bg-[#1a1400]/40 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-3">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1a1400]/60 border border-yellow-900/30">
             <Lightbulb className="size-3 text-amber-400" strokeWidth={1.5} />
@@ -293,7 +302,9 @@ function NextSteps({ steps }: { steps: string[] }) {
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
-      <div className="rounded-xl border border-[#2a2a2a] bg-[#0e0e0e] p-5">
+      <div className="rounded-2xl border border-[#2a2a2a] bg-[#0e0e0e] p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
             <List className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
@@ -332,7 +343,7 @@ function SourcesPanel({ sources }: { sources: SourceCitation[] }) {
     >
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-3 rounded-xl border border-[#2a2a2a] bg-[#0e0e0e] hover:border-[#1A3D28]/60 hover:bg-[#0A1F12]/20 transition-colors duration-150"
+        className="w-full flex items-center justify-between px-5 py-3 rounded-2xl border border-[#2a2a2a] bg-[#0e0e0e] hover:border-[#1A3D28]/60 hover:bg-[#0A1F12]/20 transition-colors duration-150"
       >
         <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
           {sources.length} Sources Cited
@@ -346,7 +357,7 @@ function SourcesPanel({ sources }: { sources: SourceCitation[] }) {
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${open ? "max-h-[600px] opacity-100 mt-2" : "max-h-0 opacity-0"}`}
       >
-        <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] divide-y divide-[#1e1e1e]">
+          <div className="rounded-2xl border border-[#1e1e1e] bg-[#0c0c0c] divide-y divide-[#1e1e1e]">
           {sources.map((source, i) => (
             <div key={i} className="px-5 py-3 flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
@@ -436,18 +447,18 @@ export default function VerdictComponent({ verdict, deliberationStatus }: Verdic
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-8 max-w-7xl mx-auto w-full">
+    <div className="flex flex-col gap-8 pb-10 max-w-7xl mx-auto w-full">
       {/* Page header */}
       <div className="page-load-item" style={{ animationDelay: "0ms" }}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
+            <p className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/40 uppercase mb-2">
               Phase 5 — Final Verdict
             </p>
-            <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">Final Verdict</h1>
-            <p className="text-sm text-[#5a5a5a] mt-0.5">Investment decision from the VC panel</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#f0f0f0] font-heading tracking-tight leading-tight">Final Verdict</h1>
+            <p className="text-sm text-[#5a5a5a] mt-1.5 leading-relaxed">Investment decision from the VC panel</p>
           </div>
-          <span className={`tag-pill ${decisionConfig(verdict.decision).tagClass}`}>
+          <span className={`tag-pill ${decisionConfig(verdict.decision).tagClass} mt-1 flex-shrink-0`}>
             {verdict.decision}
           </span>
         </div>

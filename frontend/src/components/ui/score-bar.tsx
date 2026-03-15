@@ -1,8 +1,9 @@
 // ─── ScoreBar ─────────────────────────────────────────────────────────────────
 // Animated horizontal bar that fills from 0% to target width on mount.
 // Reusable across Deck Analysis, Market Intel, Deliberation, Verdict.
+// The animation re-triggers on every mount (e.g. tab switches in Deck Analysis).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface ScoreBarProps {
   /** Score value */
@@ -29,16 +30,16 @@ function scoreBarWidth(score: number, max: number): string {
 
 export function ScoreBar({ score, max = 10, delay = 0, color = "chartreuse" }: ScoreBarProps) {
   const [width, setWidth] = useState("0%");
-  const mounted = useRef(false);
 
+  // No mounted guard — fires on every mount so re-mounting (e.g. tab switch)
+  // replays the fill animation from 0%.
   useEffect(() => {
-    if (mounted.current) return;
-    mounted.current = true;
     const t = setTimeout(() => {
       setWidth(scoreBarWidth(score, max));
     }, delay);
     return () => clearTimeout(t);
-  }, [score, max, delay]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="score-bar-track w-full">

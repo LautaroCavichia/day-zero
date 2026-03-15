@@ -52,7 +52,7 @@ export default function AppLayout({
         className="pointer-events-none fixed inset-0 z-0"
         style={{
           background:
-            "linear-gradient(to top right, rgba(200,255,0,0.17) 0%, transparent 55%)",
+            "linear-gradient(to top right, rgba(200,255,0,0.05) 0%, transparent 50%)",
         }}
       />
 

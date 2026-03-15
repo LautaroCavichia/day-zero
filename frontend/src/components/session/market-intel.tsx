@@ -43,7 +43,9 @@ function MarketSizeCard({ marketSize }: { marketSize: MarketIntel["market_size"]
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up" : ""}`}
     >
-      <div className="rounded-xl border border-[#1A3D28]/50 bg-[#0A1F12]/30 p-5">
+      <div className="rounded-2xl border border-[#1A3D28]/50 bg-[#0A1F12]/30 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 32px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
@@ -111,7 +113,9 @@ function TailwindsHeadwinds({ whyNow }: { whyNow: MarketIntel["why_now"] }) {
       className={`grid grid-cols-2 gap-4 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
       {/* Tailwinds */}
-      <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5">
+      <div className="rounded-2xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
             <TrendingUp className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
@@ -135,7 +139,9 @@ function TailwindsHeadwinds({ whyNow }: { whyNow: MarketIntel["why_now"] }) {
       </div>
 
       {/* Headwinds */}
-      <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-5">
+      <div className="rounded-2xl border border-red-900/30 bg-red-950/10 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-red-950/40 border border-red-900/30">
             <TrendingDown className="size-3 text-red-400" strokeWidth={1.5} />
@@ -182,12 +188,13 @@ function CompetitorRow({
       <button
         onClick={() => setExpanded((v) => !v)}
         className={`
-          w-full text-left rounded-xl border bg-[#0c0c0c]
+          w-full text-left rounded-2xl border bg-[#131313]
           transition-all duration-200
           ${expanded
             ? "border-[#C8FF00]/20 bg-[rgba(200,255,0,0.02)]"
-            : "border-[#1e1e1e] hover:border-[#2a2a2a] hover:bg-[#0f0f0f]"}
+            : "border-[#282828] hover:border-[#323232] hover:bg-[#161616]"}
         `}
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
       >
         <div className="flex items-center gap-4 p-4">
           {/* Name + funding */}
@@ -263,7 +270,9 @@ function PivotCard({
       className={`anim-hidden ${inView ? "anim-scale-up" : ""}`}
       style={{ animationDelay: `${animDelay}ms` }}
     >
-      <div className="rounded-xl border border-amber-900/30 bg-amber-950/10 p-5 flex flex-col gap-3">
+      <div className="rounded-2xl border border-amber-900/30 bg-amber-950/10 p-5 flex flex-col gap-3"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1a1400]/60 border border-yellow-900/30 flex-shrink-0 mt-0.5">

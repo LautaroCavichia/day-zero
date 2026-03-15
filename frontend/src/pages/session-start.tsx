@@ -136,7 +136,7 @@ export default function SessionStart() {
       {/* Fixed minimal nav */}
       <header className="fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-50 border-b border-[#1e1e1e] bg-background/80 backdrop-blur-md">
         <a href="/app" className="flex items-center gap-2 group">
-          <span className="text-sm font-semibold text-[#f0f0f0] font-display tracking-tight group-hover:text-[#C8FF00] transition-colors">
+          <span className="text-sm font-semibold text-[#f0f0f0] font-heading tracking-tight group-hover:text-[#C8FF00] transition-colors">
             DayZero
           </span>
         </a>
@@ -147,10 +147,13 @@ export default function SessionStart() {
       <main className="flex flex-col items-center justify-center min-h-screen pt-14 px-6 pb-16">
         {/* Page heading */}
         <div className="w-full max-w-2xl mb-10 text-center">
-          <h1 className="text-2xl font-semibold text-[#f0f0f0] font-display mb-2">
+          <p className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/40 uppercase mb-3">
+            New session
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#f0f0f0] font-heading tracking-tight leading-tight mb-3">
             Prepare your pitch
           </h1>
-          <p className="text-sm text-[#5a5a5a]">
+          <p className="text-sm text-[#5a5a5a] leading-relaxed">
             Upload your deck and get grilled by Sam — your AI seed-round investor.
           </p>
         </div>

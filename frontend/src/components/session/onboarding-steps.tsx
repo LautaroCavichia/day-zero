@@ -156,7 +156,9 @@ export default function OnboardingSteps({
 
       <div className="flex flex-col items-center gap-6 py-4">
         {/* Session summary pill */}
-        <div className="flex items-center gap-6 px-6 py-3 rounded-2xl border border-[#1e1e1e] bg-[#0c0c0c]">
+        <div className="flex items-center gap-6 px-6 py-3 rounded-2xl border border-[#282828] bg-[#0f0f0f]"
+          style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 4px 16px rgba(0,0,0,0.4)" }}
+        >
           <div className="flex items-center gap-2">
             <CheckCircle2
               className={`size-4 ${uploadedFileName ? "text-[#C8FF00]" : "text-[#3a3a3a]"}`}
@@ -238,10 +240,17 @@ export default function OnboardingSteps({
       </div>
 
       {/* Step content */}
-      <div className="rounded-2xl border border-[#1e1e1e] bg-[#0c0c0c] p-6">
-        {step === 1 && renderStep1()}
-        {step === 2 && renderStep2()}
-        {step === 3 && renderStep3()}
+      <div className="rounded-2xl border border-[#282828] bg-[#131313] p-6 overflow-hidden"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+      >
+        <div
+          key={step}
+          className="animate-[phase-enter_0.35s_cubic-bezier(0.22,1,0.36,1)_both]"
+        >
+          {step === 1 && renderStep1()}
+          {step === 2 && renderStep2()}
+          {step === 3 && renderStep3()}
+        </div>
       </div>
     </div>
   );

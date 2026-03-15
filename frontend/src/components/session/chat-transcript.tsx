@@ -36,7 +36,8 @@ export default function ChatTranscript({
   if (transcript.length === 0) {
     return (
       <div
-        className={`flex flex-col items-center justify-center gap-2 rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] min-h-[160px] ${className}`}
+        className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#282828] bg-[#131313] min-h-[160px] ${className}`}
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
       >
         <p className="text-xs text-[#5a5a5a] text-center">
           Transcript will appear here once the interview starts.
@@ -47,7 +48,8 @@ export default function ChatTranscript({
 
   return (
     <div
-      className={`flex flex-col overflow-y-auto rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] ${className}`}
+      className={`flex flex-col overflow-y-auto rounded-2xl border border-[#282828] bg-[#131313] ${className}`}
+      style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
     >
       <div className="flex flex-col gap-1 p-4">
         {transcript.map((turn, i) => {

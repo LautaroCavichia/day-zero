@@ -61,8 +61,11 @@ function ScoreSummaryRow({ critique }: { critique: DeckCritique }) {
       {metrics.map((m, i) => (
         <div
           key={m.label}
-          className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5"
-          style={{ animationDelay: `${i * 80}ms` }}
+          className="rounded-2xl border border-[#282828] bg-[#131313] p-5"
+          style={{
+            animationDelay: `${i * 80}ms`,
+            boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)",
+          }}
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
@@ -109,7 +112,9 @@ function OverallSummary({ summary }: { summary: string }) {
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
-      <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] px-5 py-4 flex gap-3 items-start">
+      <div className="rounded-2xl border border-[#282828] bg-[#131313] px-5 py-4 flex gap-3 items-start"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5)" }}
+      >
         <div className="flex-shrink-0 mt-0.5 flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
           <Sparkles className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
         </div>
@@ -200,7 +205,9 @@ function SlideDetailView({
 
         {/* Right: selected slide detail */}
         {selected && (
-          <div className="flex-1 min-w-0 rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] overflow-hidden">
+          <div className="flex-1 min-w-0 rounded-2xl border border-[#282828] bg-[#131313] overflow-hidden"
+            style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 32px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+          >
             {/* Slide image */}
             <div className="border-b border-[#1e1e1e] bg-[#080808]">
               {selectedImage ? (
@@ -271,7 +278,9 @@ function IssuesPanel({
       className={`grid grid-cols-2 gap-4 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
       {/* Top Issues */}
-      <div className="rounded-xl border border-red-900/30 bg-red-950/10 p-5">
+      <div className="rounded-2xl border border-red-900/30 bg-red-950/10 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-red-950/40 border border-red-900/30">
             <AlertCircle className="size-3 text-red-400" strokeWidth={1.5} />
@@ -298,7 +307,9 @@ function IssuesPanel({
       </div>
 
       {/* Missing Slides */}
-      <div className="rounded-xl border border-yellow-900/30 bg-yellow-950/10 p-5">
+      <div className="rounded-2xl border border-yellow-900/30 bg-yellow-950/10 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1a1400]/60 border border-yellow-900/30">
             <FileStack className="size-3 text-yellow-500/70" strokeWidth={1.5} />
@@ -339,7 +350,9 @@ function StrengthsPanel({ strengths }: { strengths: string[] }) {
       ref={ref as React.RefObject<HTMLDivElement>}
       className={`anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
     >
-      <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5">
+      <div className="rounded-2xl border border-[#1A3D28]/60 bg-[#0A1F12]/50 p-5"
+        style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
+      >
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
             <CheckCircle2 className="size-3 text-[#C8FF00]" strokeWidth={1.5} />

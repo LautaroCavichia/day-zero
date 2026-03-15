@@ -4,6 +4,7 @@
 // connectors, and scroll-on-overflow for narrow viewports.
 // Steps are centered on wide screens and horizontally scrollable on narrow ones.
 
+import { useEffect, useRef, useState } from "react";
 import { Check, Lock, Loader, Radio } from "lucide-react";
 import type { PhaseStatuses } from "@/hooks/useSession";
 import type { TaskStatusValue, WorkflowPhase } from "@/types/session";
@@ -72,6 +73,42 @@ export default function PhaseStepBar({
   interviewIsActive = false,
   interviewDone = false,
 }: PhaseStepBarProps) {
+  // Track which phase icons are mid-pop animation
+  const [poppingPhases, setPoppingPhases] = useState<Set<WorkflowPhase>>(new Set());
+  const prevStatuses = useRef<PhaseStatuses>({ ...phaseStatuses });
+
+  useEffect(() => {
+    const prev = prevStatuses.current;
+    const newlyDone: WorkflowPhase[] = [];
+
+    WORKFLOW_PHASES.forEach(({ phase }) => {
+      if (prev[phase] !== "done" && phaseStatuses[phase] === "done") {
+        newlyDone.push(phase);
+      }
+    });
+
+    if (newlyDone.length > 0) {
+      setPoppingPhases((current) => {
+        const next = new Set(current);
+        newlyDone.forEach((p) => next.add(p));
+        return next;
+      });
+      // Remove each popping class after animation completes (0.55s)
+      const timer = setTimeout(() => {
+        setPoppingPhases((current) => {
+          const next = new Set(current);
+          newlyDone.forEach((p) => next.delete(p));
+          return next;
+        });
+      }, 600);
+
+      prevStatuses.current = { ...phaseStatuses };
+      return () => clearTimeout(timer);
+    }
+
+    prevStatuses.current = { ...phaseStatuses };
+  }, [phaseStatuses]);
+
   return (
     <div
       className="fixed left-0 right-0 z-40 bg-[#070707]/96 backdrop-blur-xl border-b border-[#242424] overflow-x-auto overflow-y-hidden scrollbar-none"
@@ -138,6 +175,7 @@ export default function PhaseStepBar({
                     flex-shrink-0 flex items-center justify-center
                     w-6 h-6 rounded-full text-[11px] font-mono font-bold
                     transition-all duration-200
+                    ${poppingPhases.has(phase) ? "phase-done-pop" : ""}
                     ${isActive
                       ? "bg-[#C8FF00] text-black shadow-[0_0_12px_rgba(200,255,0,0.4)]"
                       : isDone

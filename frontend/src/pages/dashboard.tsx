@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import GrainOverlay from "@/components/shared/grain-overlay";
+import Logo from "@/components/shared/logo";
 import SessionCard, {
   HeroSessionCard,
   NewSessionCard,
@@ -82,7 +83,7 @@ function SortDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-48 rounded-lg border border-[#2a2a2a] bg-[#0e0e0e] shadow-xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1.5 w-48 rounded-lg border border-[#2a2a2a] bg-[#0e0e0e] shadow-xl z-50 overflow-hidden animate-[scale-up_0.15s_cubic-bezier(0.22,1,0.36,1)_both] origin-top-right">
           {SORT_OPTIONS.map((opt) => (
             <button
               key={opt.key}
@@ -285,16 +286,14 @@ export default function Dashboard() {
         className="pointer-events-none fixed inset-0 z-0"
         style={{
           background:
-            "linear-gradient(to top right, rgba(200,255,0,0.14) 0%, transparent 55%)",
+            "linear-gradient(to top right, rgba(200,255,0,0.05) 0%, transparent 50%)",
         }}
       />
 
       {/* ── Nav ── */}
       <header className="fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-50 border-b border-[#1e1e1e] bg-[#050505]/90 backdrop-blur-xl">
-        <a href="/" className="flex items-center gap-2 group">
-          <span className="text-sm font-semibold text-[#f0f0f0] font-heading tracking-tight group-hover:text-[#C8FF00] transition-colors">
-            Day<span className="text-[#C8FF00]">Zero</span>
-          </span>
+        <a href="/" className="flex-shrink-0">
+          <Logo className="text-sm" />
         </a>
         <button
           onClick={handleNewSession}
@@ -309,11 +308,14 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-6 py-10">
 
           {/* ── Page header ── */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-semibold text-[#f0f0f0] font-heading tracking-tight">
+          <div className="mb-10">
+            <p className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/40 uppercase mb-2">
+              Dashboard
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#f0f0f0] font-heading tracking-tight leading-tight">
               Pitch sessions
             </h1>
-            <p className="text-sm text-[#5a5a5a] mt-1">
+            <p className="text-sm text-[#5a5a5a] mt-1.5 leading-relaxed">
               Full YC-style evaluation — interview, deck, market intel, and a verdict.
             </p>
           </div>
@@ -428,14 +430,21 @@ export default function Dashboard() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* New session card — always first */}
-                  <NewSessionCard onClick={handleNewSession} />
+                  <div className="anim-fade-up anim-delay-0">
+                    <NewSessionCard onClick={handleNewSession} />
+                  </div>
 
-                  {gridSessions.map((s) => (
-                    <SessionCard
+                  {gridSessions.map((s, i) => (
+                    <div
                       key={s.session_id}
-                      summary={s}
-                      onDelete={handleDelete}
-                    />
+                      className="anim-fade-up"
+                      style={{ animationDelay: `${Math.min((i + 1) * 80, 400)}ms` }}
+                    >
+                      <SessionCard
+                        summary={s}
+                        onDelete={handleDelete}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
