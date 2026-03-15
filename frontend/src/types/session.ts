@@ -278,6 +278,10 @@ export interface WsInterruptedEvent {
   type: "interrupted";
 }
 
+export interface WsInterviewCompleteEvent {
+  type: "interview_complete";
+}
+
 export interface WsErrorEvent {
   type: "error";
   message: string;
@@ -287,6 +291,7 @@ export type WsServerEvent =
   | WsTranscriptEvent
   | WsTurnCompleteEvent
   | WsInterruptedEvent
+  | WsInterviewCompleteEvent
   | WsErrorEvent;
 
 // ─── Deliberation WebSocket Events ───────────────────────────────────────────

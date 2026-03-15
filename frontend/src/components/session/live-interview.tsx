@@ -743,6 +743,16 @@ export default function LiveInterview({
     });
   }, [interview, pipeline, analyser]);
 
+  // ─── Clear playback queue on interruption ────────────────────────────────────
+  useEffect(() => {
+    interview.onInterrupted(() => {
+      pipeline.clearPlayback();
+      // Re-connect analyser to the new GainNode after clearPlayback recreates it
+      const node = pipeline.getPlaybackNode();
+      if (node) analyser.connectSource(node);
+    });
+  }, [interview, pipeline, analyser]);
+
   // ─── Auto-start mic after Sam's first greeting ───────────────────────────────
   // Once Sam finishes speaking his opening question, automatically activate the
   // mic so the user doesn't have to click anything — feels like a real phone call.

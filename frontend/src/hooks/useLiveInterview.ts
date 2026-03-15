@@ -34,6 +34,8 @@ export interface UseInterviewReturn {
   /** Register a one-time callback that fires after Sam's first turn_complete.
    *  Used to auto-activate the mic after Sam's opening greeting. */
   onFirstTurnComplete: (handler: () => void) => void;
+  /** Register a callback that fires every time Sam is interrupted (e.g. to clear playback). */
+  onInterrupted: (handler: () => void) => void;
 }
 
 export function useLiveInterview(): UseInterviewReturn {
@@ -52,6 +54,8 @@ export function useLiveInterview(): UseInterviewReturn {
   // One-time callback for auto-mic after Sam's first greeting
   const firstTurnCallbackRef = useRef<(() => void) | null>(null);
   const firstTurnFiredRef = useRef(false);
+  // Callback fired on every interruption (e.g. clear playback queue)
+  const interruptedHandlerRef = useRef<(() => void) | null>(null);
 
   // ─── Founder transcript accumulation buffer ──────────────────────────────
   // Gemini sends input_transcription in many small incremental chunks.
@@ -184,6 +188,13 @@ export function useLiveInterview(): UseInterviewReturn {
         founderBufStartedRef.current = false;
         setIsSamSpeaking(false);
         if (isMounted.current) setStatus("listening");
+        // Notify listeners (e.g. clear playback queue)
+        interruptedHandlerRef.current?.();
+        break;
+
+      case "interview_complete":
+        // Sam signalled INTERVIEW_COMPLETE — auto-end the interview gracefully
+        if (isMounted.current) setStatus("ended");
         break;
 
       case "error":
@@ -293,6 +304,10 @@ export function useLiveInterview(): UseInterviewReturn {
     firstTurnCallbackRef.current = handler;
   }, []);
 
+  const onInterrupted = useCallback((handler: () => void) => {
+    interruptedHandlerRef.current = handler;
+  }, []);
+
   return {
     status,
     transcript,
@@ -307,5 +322,6 @@ export function useLiveInterview(): UseInterviewReturn {
     endInterview,
     onAudioChunk,
     onFirstTurnComplete,
+    onInterrupted,
   };
 }

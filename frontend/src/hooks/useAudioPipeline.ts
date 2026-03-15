@@ -22,13 +22,15 @@ export interface UseAudioPipelineReturn {
   stopMic: (ws?: WebSocket | null) => void;
   /** Call with PCM24 binary data received from the WebSocket to play AI audio */
   playAudioChunk: (chunk: ArrayBuffer) => void;
+  /** Immediately stop all queued/scheduled AI audio playback (e.g. on interruption) */
+  clearPlayback: () => void;
   /** Returns the AudioNode that plays AI audio, for connecting to an AnalyserNode */
   getPlaybackNode: () => AudioNode | null;
   error: string | null;
 }
 
 // PCM helpers
-const INPUT_SAMPLE_RATE = 16000;  // What Gemini Live expects
+const INPUT_SAMPLE_RATE = 24000;  // AudioContext sampleRate — Gemini resamples internally
 const OUTPUT_SAMPLE_RATE = 24000; // What Gemini Live sends back
 
 // AudioWorklet inline code for float32 → PCM16 conversion
@@ -221,6 +223,20 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
     return playbackNodeRef.current;
   }, []);
 
+  /** Stop all scheduled audio immediately (called on interruption). */
+  const clearPlayback = useCallback(() => {
+    const audioCtx = audioCtxRef.current;
+    if (!audioCtx || !playbackNodeRef.current) return;
+    // Disconnect the old GainNode and create a fresh one — this cancels
+    // all BufferSourceNodes currently scheduled on the old node.
+    playbackNodeRef.current.disconnect();
+    const gain = audioCtx.createGain();
+    gain.gain.value = 1.0;
+    gain.connect(audioCtx.destination);
+    playbackNodeRef.current = gain;
+    nextPlayTimeRef.current = 0;
+  }, []);
+
   return {
     status,
     micLevel,
@@ -228,6 +244,7 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
     startMic,
     stopMic,
     playAudioChunk,
+    clearPlayback,
     getPlaybackNode,
     error,
   };
