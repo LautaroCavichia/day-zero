@@ -558,10 +558,36 @@ async def live_interview_ws(websocket: WebSocket, session_id: str):
     await run_live_interview(websocket, session_id)
 
 
-# ── Static frontend ─────────────────────────────────────────────────────────
+# ── Static frontend (React / Vite build output) ────────────────────────────
 
+# In production, serve the Vite build output from frontend/dist/.
+# In development, run `pnpm dev` in frontend/ and use the Vite proxy instead.
+_frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 _frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-if os.path.isdir(_frontend_dir):
+
+if os.path.isdir(_frontend_dist):
+    # Serve static assets (JS, CSS, fonts, images) from the dist/assets/ dir
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(_frontend_dist, "assets")),
+        name="assets",
+    )
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        """Serve the React SPA. All non-API routes fall through to index.html."""
+        # Try serving a static file first (e.g. favicon.svg)
+        static_path = os.path.join(_frontend_dist, full_path)
+        if full_path and os.path.isfile(static_path):
+            return FileResponse(static_path)
+        # Otherwise serve the SPA entry point for client-side routing
+        index_path = os.path.join(_frontend_dist, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Frontend not found")
+
+elif os.path.isdir(_frontend_dir):
+    # Legacy fallback: serve raw frontend/ files (development without Vite build)
     app.mount("/static", StaticFiles(directory=_frontend_dir), name="static")
 
     @app.get("/", include_in_schema=False)
@@ -570,13 +596,6 @@ if os.path.isdir(_frontend_dir):
         if os.path.exists(index_path):
             return FileResponse(index_path)
         raise HTTPException(status_code=404, detail="Frontend not found")
-
-    @app.get("/debug", include_in_schema=False)
-    async def serve_debug():
-        debug_path = os.path.join(_frontend_dir, "debug.html")
-        if os.path.exists(debug_path):
-            return FileResponse(debug_path)
-        raise HTTPException(status_code=404, detail="Debug page not found")
 
 
 # ── Health checks ────────────────────────────────────────────────────────────
@@ -713,7 +732,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "main:app",
+        "backend.main:app",
         host=settings.host,
         port=settings.port,
         reload=True,

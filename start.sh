@@ -16,11 +16,14 @@ fi
 # Activate venv
 source venv/bin/activate
 
-# Check if dependencies are installed
-if ! python -c "import fastapi" 2>/dev/null; then
+# Check if dependencies are installed (using python3 explicitly)
+echo "Checking dependencies..."
+if ! python3 -c "import fastapi, pydantic, pydantic_settings, dotenv" 2>/dev/null; then
     echo "Installing dependencies..."
     pip install -q -r backend/requirements.txt
     echo "✓ Dependencies installed"
+else
+    echo "✓ Dependencies already installed"
 fi
 
 # Check for API key
@@ -44,4 +47,7 @@ echo "Starting server on http://localhost:8080"
 echo "Press Ctrl+C to stop"
 echo ""
 
-cd backend && python main.py
+# Run from root using module syntax to resolve absolute imports
+export PYTHONPATH=$PYTHONPATH:.
+python3 -m backend.main
+
