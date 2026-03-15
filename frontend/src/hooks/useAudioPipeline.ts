@@ -13,6 +13,9 @@ export type PipelineStatus = "idle" | "requesting-mic" | "active" | "error";
 export interface UseAudioPipelineReturn {
   status: PipelineStatus;
   micLevel: number; // 0.0–1.0, from microphone input
+  /** Call once the AudioContext is available (e.g. right after WS connects) so
+   *  playback works even before the mic is toggled on. */
+  initPlayback: (audioCtx: AudioContext) => void;
   startMic: (ws: WebSocket, audioCtx: AudioContext) => Promise<void>;
   stopMic: () => void;
   /** Call with PCM24 binary data received from the WebSocket to play AI audio */
@@ -59,6 +62,21 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
   const playbackNodeRef = useRef<GainNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const workletUrlRef = useRef<string | null>(null);
+  // Gapless playback: tracks the end time of the last scheduled chunk
+  const nextPlayTimeRef = useRef<number>(0);
+
+  // Initialize the playback AudioContext and GainNode as soon as the WS connects,
+  // so Sam's audio plays even before the user clicks the mic button.
+  const initPlayback = useCallback((audioCtx: AudioContext) => {
+    audioCtxRef.current = audioCtx;
+    if (!playbackNodeRef.current) {
+      const gain = audioCtx.createGain();
+      gain.gain.value = 1.0;
+      gain.connect(audioCtx.destination);
+      playbackNodeRef.current = gain;
+      nextPlayTimeRef.current = 0;
+    }
+  }, []);
 
   const stopMicLevelLoop = useCallback(() => {
     if (micRafRef.current !== null) {
@@ -107,7 +125,8 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
     async (ws: WebSocket, audioCtx: AudioContext) => {
       setError(null);
       setStatus("requesting-mic");
-      audioCtxRef.current = audioCtx;
+      // Ensure playback is initialised (idempotent — also called at connect time)
+      initPlayback(audioCtx);
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -163,26 +182,18 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
         throw err;
       }
     },
-    [startMicLevelLoop, stopMic]
+    [initPlayback, startMicLevelLoop, stopMic]
   );
 
   const playAudioChunk = useCallback((chunk: ArrayBuffer) => {
     const audioCtx = audioCtxRef.current;
-    if (!audioCtx) return;
-
-    // Ensure we have a shared gain node for the playback chain
-    if (!playbackNodeRef.current) {
-      const gain = audioCtx.createGain();
-      gain.gain.value = 1.0;
-      gain.connect(audioCtx.destination);
-      playbackNodeRef.current = gain;
-    }
+    if (!audioCtx || !playbackNodeRef.current) return;
 
     // PCM24 is 16-bit signed int at 24kHz
     const pcm16 = new Int16Array(chunk);
     const float32 = new Float32Array(pcm16.length);
     for (let i = 0; i < pcm16.length; i++) {
-      float32[i] = pcm16[i] / 32768.0;
+      float32[i] = pcm16[i] / (pcm16[i] < 0 ? 32768.0 : 32767.0);
     }
 
     const buffer = audioCtx.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
@@ -191,7 +202,11 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     source.connect(playbackNodeRef.current);
-    source.start();
+
+    // Gapless scheduling: play each chunk exactly after the previous one ends
+    const startAt = Math.max(audioCtx.currentTime, nextPlayTimeRef.current);
+    source.start(startAt);
+    nextPlayTimeRef.current = startAt + buffer.duration;
   }, []);
 
   const getPlaybackNode = useCallback((): AudioNode | null => {
@@ -201,6 +216,7 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
   return {
     status,
     micLevel,
+    initPlayback,
     startMic,
     stopMic,
     playAudioChunk,

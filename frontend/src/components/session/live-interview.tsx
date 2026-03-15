@@ -737,6 +737,15 @@ export default function LiveInterview({
     });
   }, [interview, pipeline, analyser]);
 
+  // ─── Init playback as soon as the AudioContext is ready (WS connected) ───────
+  // This ensures Sam's audio plays even before the user clicks the mic button.
+  // Use interview.status as the trigger since audioCtx is a ref (no re-render).
+  useEffect(() => {
+    const ctx = interview.audioCtx;
+    if (ctx) pipeline.initPlayback(ctx);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interview.status]);
+
   // ─── Fire onInterviewEnded callback when call ends ──────────────────────────
   useEffect(() => {
     if (
