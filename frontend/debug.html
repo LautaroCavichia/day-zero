@@ -283,6 +283,28 @@
       <button class="primary" onclick="submitPitch()">Submit Pitch</button>
     </div>
 
+    <!-- Deck Upload -->
+    <div class="section">
+      <div class="section-title">Upload Pitch Deck</div>
+      <p style="color:#8b949e; font-size:11px; margin-bottom:8px;">PDF or PPTX — SAM will receive full slide text as context and detect discrepancies.</p>
+      <input type="file" id="deck-file-input" accept=".pdf,.pptx" style="margin-bottom:8px; color:#c9d1d9;" />
+      <div class="btn-row">
+        <button class="primary" onclick="uploadDeck()">Upload &amp; Analyze</button>
+      </div>
+      <div id="deck-upload-status" style="margin-top:8px; font-size:11px; color:#8b949e;"></div>
+    </div>
+
+    <!-- Slide Control -->
+    <div class="section" id="slide-control-section" style="display:none;">
+      <div class="section-title">Slide Control (during interview)</div>
+      <div id="slide-counter" style="color:#58a6ff; font-size:14px; font-weight:700; margin-bottom:4px;">Slide 1 / ?</div>
+      <div id="slide-title-display" style="color:#c9d1d9; font-size:11px; margin-bottom:10px; min-height:16px;"></div>
+      <div class="btn-row">
+        <button onclick="prevSlide()">◄ Prev</button>
+        <button onclick="nextSlide()">Next ►</button>
+      </div>
+    </div>
+
     <!-- Market Validation -->
     <div class="section">
       <div class="section-title">Market Validation</div>
@@ -567,6 +589,16 @@
     setPreContent('state-debate', state.debate_rounds);
     setPreContent('state-verdict', state.final_verdict);
     setPreContent('state-delivery', state.delivery_scores);
+
+    // Populate slide metadata for slide control panel
+    if (state.slide_metadata && state.slide_metadata.length) {
+      slideMetadata = state.slide_metadata;
+      // Only reset index if this is the first load (not a refresh mid-interview)
+      if (slideMetadata.length && document.getElementById('slide-control-section').style.display === 'none') {
+        currentSlideIndex = 0;
+      }
+      updateSlideDisplay();
+    }
 
     // Update badges
     updateBadge('market-badge', state.market_intel_status?.status || 'idle');
@@ -982,8 +1014,76 @@
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Init
+  // ─────────────────────────────────────────────────────────────────────────  // Deck upload & Slide control
+  // ───────────────────────────────────────────────────────────────────────────
+  let slideMetadata = [];
+  let currentSlideIndex = 0;
+
+  async function uploadDeck() {
+    if (!sessionId) { log('No session. Create one first.', 'warn'); return; }
+    const fileInput = document.getElementById('deck-file-input');
+    if (!fileInput.files.length) { log('Select a PDF or PPTX file first.', 'warn'); return; }
+
+    const statusEl = document.getElementById('deck-upload-status');
+    statusEl.textContent = 'Uploading and analyzing...';
+    log(`Uploading deck: ${fileInput.files[0].name}`, 'info');
+
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('file', fileInput.files[0]);
+
+    try {
+      const r = await fetch(`${API}/api/upload-deck`, { method: 'POST', body: formData });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      const slideCount = d.deck_critique?.slide_count || '?';
+      log(`Deck analyzed: ${slideCount} slides. SAM now has full deck context.`, 'ok');
+      statusEl.textContent = `✓ ${slideCount} slides analyzed. SAM has full deck context.`;
+      await refreshState();  // pulls slide_metadata into state and shows slide control
+    } catch (e) {
+      log(`uploadDeck failed: ${e.message}`, 'error');
+      statusEl.textContent = 'Upload failed';
+    }
+  }
+
+  function updateSlideDisplay() {
+    if (!slideMetadata.length) return;
+    const total = slideMetadata.length;
+    const slide = slideMetadata[currentSlideIndex] || {};
+    document.getElementById('slide-counter').textContent = `Slide ${currentSlideIndex + 1} / ${total}`;
+    document.getElementById('slide-title-display').textContent = slide.title || '';
+    document.getElementById('slide-control-section').style.display = 'block';
+  }
+
+  function sendSlideChange() {
+    if (!liveWs || liveWs.readyState !== WebSocket.OPEN) {
+      log('Interview not running — slide position updated locally only', 'warn');
+      return;
+    }
+    liveWs.send(JSON.stringify({
+      type: 'slide_change',
+      index: currentSlideIndex,
+      total: slideMetadata.length,
+    }));
+    const slide = slideMetadata[currentSlideIndex] || {};
+    log(`📄 Slide → ${currentSlideIndex + 1}/${slideMetadata.length}: ${slide.title || ''}`, 'info');
+  }
+
+  function prevSlide() {
+    if (!slideMetadata.length || currentSlideIndex <= 0) return;
+    currentSlideIndex--;
+    updateSlideDisplay();
+    sendSlideChange();
+  }
+
+  function nextSlide() {
+    if (!slideMetadata.length || currentSlideIndex >= slideMetadata.length - 1) return;
+    currentSlideIndex++;
+    updateSlideDisplay();
+    sendSlideChange();
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────  // Init
   // ─────────────────────────────────────────────────────────────────────────
   checkHealth();
 </script>

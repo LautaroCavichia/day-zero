@@ -105,6 +105,7 @@ class GoogleProvider(LLMProvider):
         system_instruction: str,
         session_id: str,
         store: Any = None,
+        slide_metadata: list | None = None,
     ) -> None:
         """
         Bridge browser WebSocket ↔ Gemini Live API.
@@ -144,7 +145,7 @@ class GoogleProvider(LLMProvider):
                 logger.info("Gemini Live session established: session=%s", session_id)
 
                 send_task = asyncio.create_task(
-                    self._send_loop(websocket, gemini_session, session_id, LIVE_API_INPUT_SAMPLE_RATE)
+                    self._send_loop(websocket, gemini_session, session_id, LIVE_API_INPUT_SAMPLE_RATE, slide_metadata or [])
                 )
                 recv_task = asyncio.create_task(
                     self._receive_loop(websocket, gemini_session, session_id, store)
@@ -183,6 +184,7 @@ class GoogleProvider(LLMProvider):
         gemini_session: Any,
         session_id: str,
         input_sample_rate: int,
+        slide_metadata: list | None = None,
     ) -> None:
         """Forward audio / control frames from the browser to Gemini."""
         from fastapi import WebSocketDisconnect
@@ -219,13 +221,26 @@ class GoogleProvider(LLMProvider):
                         break
 
                     elif msg_type == "slide_change":
-                        slide_index = ctrl.get("index", 0)
-                        slide_title = ctrl.get("title", f"Slide {slide_index + 1}")
+                        slide_index = ctrl.get("index", 0)  # 0-based from frontend
                         slide_total = ctrl.get("total", "?")
-                        context_msg = (
-                            f"[SLIDE {slide_index + 1} of {slide_total}: {slide_title}] "
-                            f"The founder has advanced to this slide."
+
+                        # Look up metadata for this slide (list is 0-indexed, metadata index field is 1-based)
+                        _meta = slide_metadata or []
+                        slide_data = _meta[slide_index] if _meta and slide_index < len(_meta) else {}
+                        slide_title = slide_data.get("title", f"Slide {slide_index + 1}")
+                        slide_text = slide_data.get("extracted_text", "").strip()
+
+                        context_parts = [
+                            f"[SLIDE CHANGE: now on slide {slide_index + 1} of {slide_total} — {slide_title}]"
+                        ]
+                        if slide_text:
+                            context_parts.append(f"This slide contains: {slide_text}")
+                        context_parts.append(
+                            "The founder is presenting this slide now. "
+                            "If they say anything inconsistent with the content above, interrupt immediately."
                         )
+                        context_msg = "\n".join(context_parts)
+
                         await gemini_session.send_realtime_input(text=context_msg)
                         logger.info(
                             "Slide change injected: session=%s slide=%d/%s title=%s",
@@ -289,6 +304,14 @@ class GoogleProvider(LLMProvider):
                         # Check if Sam said interview is complete
                         if "INTERVIEW_COMPLETE" in text:
                             interview_complete = True
+                        
+                        # DEBUG: Log topic markers
+                        if "[ASKING_TOPIC:" in text:
+                            import re
+                            topic_match = re.search(r'\[ASKING_TOPIC:\s*([^\]]+)\]', text)
+                            if topic_match:
+                                topic = topic_match.group(1).strip()
+                                logger.info("📌 SAM ASKING ABOUT: %s (session=%s)", topic, session_id)
                         
                         await websocket.send_text(
                             json.dumps(

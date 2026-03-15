@@ -60,6 +60,7 @@ class SlideNote(_Base):
 
     index: int = Field(..., ge=1, description="1-based slide index.")
     title: str = ""
+    content_text: str = ""  # All visible text on this slide, extracted by Gemini
     critique: str = ""
     score: float = Field(default=0.0, ge=0.0, le=10.0)
 
