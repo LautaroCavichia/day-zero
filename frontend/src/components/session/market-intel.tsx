@@ -324,7 +324,7 @@ function PivotSuggestions({ pivots }: { pivots: PivotSuggestion[] }) {
 
 function MarketIntelLoading() {
   return (
-    <div className="flex flex-col gap-6 pb-8 max-w-5xl mx-auto w-full animate-[fade-in_0.4s_ease_both]">
+    <div className="flex flex-col gap-6 pb-8 max-w-7xl mx-auto w-full animate-[fade-in_0.4s_ease_both]">
       {/* Header skeleton */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">

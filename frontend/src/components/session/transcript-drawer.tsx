@@ -5,8 +5,14 @@
 // to drive the transform transition. This avoids the rAF/mount-split race
 // that caused choppy open/close in the previous implementation.
 // The backdrop uses the same class-toggle pattern.
+//
+// Portal approach: rendered via createPortal into document.body so that
+// `position: fixed` is always relative to the viewport — parent CSS animations
+// (e.g. phase-enter with fill:both) create a new containing block that would
+// otherwise break fixed positioning and prevent the drawer from hiding.
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, MessageSquare } from "lucide-react";
 import ChatTranscript from "@/components/session/chat-transcript";
 import type { TranscriptTurn } from "@/types/session";
@@ -34,7 +40,7 @@ export default function TranscriptDrawer({ open, onClose, transcript }: Transcri
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop — always in DOM, toggled via class */}
       <div
@@ -96,6 +102,7 @@ export default function TranscriptDrawer({ open, onClose, transcript }: Transcri
           />
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

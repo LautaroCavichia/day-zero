@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import AppLayout from "@/components/app/app-layout";
 import LiveInterview from "@/components/session/live-interview";
 import type { InterviewLifecycle } from "@/components/session/live-interview";
@@ -22,6 +23,7 @@ import { useSession } from "@/hooks/useSession";
 import { usePhaseNotifications } from "@/hooks/usePhaseNotifications";
 import { api } from "@/services/api";
 import type { WorkflowPhase } from "@/types/session";
+import { WORKFLOW_PHASES } from "@/types/session";
 
 // ─── Phase content wrapper with entrance animation ────────────────────────────
 function PhasePanel({
@@ -299,12 +301,66 @@ export default function SessionWorkspace() {
         debateRoundsCount={session.sessionState?.debate_rounds?.length ?? 0}
         interviewIsActive={interviewIsActive}
         interviewDone={interviewDoneRef.current}
-        interviewElapsed={0}
       >
         <PhasePanel phaseKey={String(session.activePhase)}>
           {renderPhase()}
         </PhasePanel>
       </AppLayout>
+
+      {/* ── Prev / Next phase chevrons ─────────────────────────────────── */}
+      {(() => {
+        const phases = WORKFLOW_PHASES.map((p) => p.phase) as WorkflowPhase[];
+        const currentIdx = phases.indexOf(session.activePhase);
+        const prevPhase = currentIdx > 0 ? phases[currentIdx - 1] : null;
+        const nextPhase = currentIdx < phases.length - 1 ? phases[currentIdx + 1] : null;
+        const nextLocked = nextPhase ? session.phaseStatuses[nextPhase] === "locked" : true;
+
+        return (
+          <>
+            {/* Left — previous */}
+            {prevPhase !== null && (
+              <button
+                onClick={() => handleSelectPhase(prevPhase)}
+                className="
+                  fixed left-3 z-50 flex items-center justify-center
+                  w-8 h-8 rounded-full
+                  bg-[#111111]/80 backdrop-blur-sm
+                  border border-[#2a2a2a]
+                  text-[#505050] hover:text-[#c0c0c0] hover:border-[#3e3e3e]
+                  transition-all duration-200 hover:scale-105
+                  shadow-[0_2px_12px_rgba(0,0,0,0.4)]
+                "
+                style={{ top: "calc(3.5rem + 3.5rem + 50vh - 1rem)" }}
+                title="Previous phase"
+                aria-label="Previous phase"
+              >
+                <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            )}
+
+            {/* Right — next */}
+            {nextPhase !== null && !nextLocked && (
+              <button
+                onClick={() => handleSelectPhase(nextPhase)}
+                className="
+                  fixed right-3 z-50 flex items-center justify-center
+                  w-8 h-8 rounded-full
+                  bg-[#111111]/80 backdrop-blur-sm
+                  border border-[#2a2a2a]
+                  text-[#505050] hover:text-[#C8FF00] hover:border-[#C8FF00]/30
+                  transition-all duration-200 hover:scale-105
+                  shadow-[0_2px_12px_rgba(0,0,0,0.4)]
+                "
+                style={{ top: "calc(3.5rem + 3.5rem + 50vh - 1rem)" }}
+                title="Next phase"
+                aria-label="Next phase"
+              >
+                <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            )}
+          </>
+        );
+      })()}
 
       {/* Navigation-away confirm dialog */}
       <ConfirmDialog

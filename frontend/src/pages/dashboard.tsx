@@ -91,8 +91,8 @@ function SortDropdown({
                 setOpen(false);
               }}
               className={`w-full text-left px-3.5 py-2.5 text-xs font-mono transition-colors hover:bg-[#161616] ${opt.key === value
-                  ? "text-[#C8FF00]"
-                  : "text-[#a0a0a0] hover:text-[#f0f0f0]"
+                ? "text-[#C8FF00]"
+                : "text-[#a0a0a0] hover:text-[#f0f0f0]"
                 }`}
             >
               {opt.label}
@@ -279,62 +279,26 @@ export default function Dashboard() {
     <div className="dark min-h-screen bg-background text-foreground">
       <GrainOverlay />
 
-      {/* ── Atmospheric background glows (CSS only, no WebGL) ── */}
+      {/* ── Atmospheric background glow ── */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-      >
-        {/* Top-left chartreuse bloom */}
-        <div
-          className="absolute"
-          style={{
-            top: "-20%",
-            left: "-10%",
-            width: "70vw",
-            height: "70vw",
-            background:
-              "radial-gradient(ellipse at center, rgba(200,255,0,0.055) 0%, rgba(200,255,0,0.018) 35%, transparent 65%)",
-            filter: "blur(40px)",
-          }}
-        />
-        {/* Mid-right forest depth */}
-        <div
-          className="absolute"
-          style={{
-            top: "20%",
-            right: "-15%",
-            width: "55vw",
-            height: "55vw",
-            background:
-              "radial-gradient(ellipse at center, rgba(26,61,40,0.35) 0%, rgba(10,31,18,0.15) 45%, transparent 70%)",
-            filter: "blur(60px)",
-          }}
-        />
-        {/* Bottom-center subtle warm */}
-        <div
-          className="absolute"
-          style={{
-            bottom: "-10%",
-            left: "30%",
-            width: "50vw",
-            height: "40vw",
-            background:
-              "radial-gradient(ellipse at center, rgba(200,255,0,0.025) 0%, transparent 60%)",
-            filter: "blur(50px)",
-          }}
-        />
-      </div>
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          background:
+            "linear-gradient(to top right, rgba(200,255,0,0.14) 0%, transparent 55%)",
+        }}
+      />
 
       {/* ── Nav ── */}
-      <header className="fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-50 border-b border-[#1e1e1e] bg-background/80 backdrop-blur-md">
+      <header className="fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-50 border-b border-[#1e1e1e] bg-[#050505]/90 backdrop-blur-xl">
         <a href="/" className="flex items-center gap-2 group">
           <span className="text-sm font-semibold text-[#f0f0f0] font-heading tracking-tight group-hover:text-[#C8FF00] transition-colors">
-            DayZero
+            Day<span className="text-[#C8FF00]">Zero</span>
           </span>
         </a>
         <button
           onClick={handleNewSession}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8FF00] px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-[#D4FF33] transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-[#C8FF00] px-3.5 py-1.5 text-xs font-semibold text-black hover:bg-[#D4FF33] active:scale-95 transition-all duration-150 shadow-[0_0_20px_rgba(200,255,0,0.15)]"
         >
           New session
           <ArrowUpRight className="size-3" />
@@ -342,7 +306,7 @@ export default function Dashboard() {
       </header>
 
       <main className="relative z-10 pt-14 min-h-screen">
-        <div className="max-w-5xl mx-auto px-6 py-10">
+        <div className="max-w-7xl mx-auto px-6 py-10">
 
           {/* ── Page header ── */}
           <div className="mb-8">
@@ -405,8 +369,8 @@ export default function Dashboard() {
                 <button
                   onClick={() => setShowInProgressOnly((v) => !v)}
                   className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border text-xs font-mono transition-all duration-150 ${showInProgressOnly
-                      ? "border-[#C8FF00]/30 bg-[#C8FF00]/8 text-[#C8FF00]"
-                      : "border-[#1e1e1e] bg-[#0c0c0c] text-[#5a5a5a] hover:border-[#2e2e2e] hover:text-[#a0a0a0]"
+                    ? "border-[#C8FF00]/30 bg-[#C8FF00]/8 text-[#C8FF00]"
+                    : "border-[#1e1e1e] bg-[#0c0c0c] text-[#5a5a5a] hover:border-[#2e2e2e] hover:text-[#a0a0a0]"
                     }`}
                 >
                   <span

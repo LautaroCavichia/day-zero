@@ -229,24 +229,34 @@ function TopImprovements({ items }: { items: string[] }) {
 
   return (
     <div className="rounded-xl border border-amber-900/25 bg-amber-950/8 p-4 flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1a1400]/60 border border-yellow-900/30 flex-shrink-0">
-          <TrendingUp className="size-3 text-amber-400" strokeWidth={1.5} />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1a1400]/60 border border-yellow-900/30 flex-shrink-0">
+            <TrendingUp className="size-3 text-amber-400" strokeWidth={1.5} />
+          </div>
+          <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
+            Key Improvements
+          </p>
         </div>
-        <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
-          Key Improvements
-        </p>
+        <span className="text-[9px] font-mono text-[#3a3a3a]">{items.length} items</span>
       </div>
-      <ul className="flex flex-col gap-2">
-        {items.map((item, i) => (
-          <li key={i} className="flex gap-2.5 items-start">
-            <span className="flex-shrink-0 w-4 h-4 rounded-full bg-amber-950/40 border border-amber-900/30 text-[9px] font-mono text-amber-400/80 flex items-center justify-center mt-0.5">
-              {i + 1}
-            </span>
-            <span className="text-sm text-[#a0a0a0] leading-snug">{item}</span>
-          </li>
-        ))}
-      </ul>
+      {/* Scrollable list capped at ~4 items visible */}
+      <div className="relative">
+        <ul className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
+          {items.map((item, i) => (
+            <li key={i} className="flex gap-2.5 items-start">
+              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-amber-950/40 border border-amber-900/30 text-[9px] font-mono text-amber-400/80 flex items-center justify-center mt-0.5">
+                {i + 1}
+              </span>
+              <span className="text-sm text-[#a0a0a0] leading-snug">{item}</span>
+            </li>
+          ))}
+        </ul>
+        {/* Fade hint at the bottom when list is scrollable */}
+        {items.length > 4 && (
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-amber-950/20 to-transparent rounded-b-lg" />
+        )}
+      </div>
     </div>
   );
 }

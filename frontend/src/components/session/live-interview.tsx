@@ -264,8 +264,6 @@ function PreInterviewScreen({ slideCount, hasDeck, onBegin, isConnecting }: PreI
 
 // ─── Post-interview screen ────────────────────────────────────────────────────
 
-type PostView = "results" | "training";
-
 interface PostInterviewProps {
   sessionId: string;
   scores: DeliveryScores | null;
@@ -286,7 +284,6 @@ function transcriptStats(transcript: TranscriptTurn[]) {
 
 function PostInterviewScreen({ sessionId, scores, transcript, duration, onContinue, onRedo }: PostInterviewProps) {
   const [showRedoConfirm, setShowRedoConfirm] = useState(false);
-  const [view, setView] = useState<PostView>("results");
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   const formatDuration = (s: number) => {
@@ -312,9 +309,10 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
       : "text-red-400";
 
   return (
-    <div className="flex flex-col gap-5 h-full max-w-5xl mx-auto w-full animate-[phase-enter_0.4s_cubic-bezier(0.22,1,0.36,1)_both]">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-shrink-0 anim-hidden anim-fade-up">
+    <div className="flex flex-col h-full w-full animate-[phase-enter_0.4s_cubic-bezier(0.22,1,0.36,1)_both]">
+      <div className="max-w-7xl mx-auto w-full flex flex-col h-full">
+      {/* ── Top header bar ──────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-4 flex-shrink-0 pb-4 anim-hidden anim-fade-up">
         <div>
           <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase mb-1">
             Phase 1 — Live Interview
@@ -329,31 +327,6 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* View toggle */}
-          <div className="flex items-center rounded-lg border border-[#2a2a2a] bg-[#161616] p-0.5">
-            <button
-              onClick={() => setView("results")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${
-                view === "results"
-                  ? "bg-[#1e1e1e] text-[#f0f0f0]"
-                  : "text-[#5a5a5a] hover:text-[#a0a0a0]"
-              }`}
-            >
-              Results
-            </button>
-            <button
-              onClick={() => setView("training")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${
-                view === "training"
-                  ? "bg-[#0A1F12] text-[#C8FF00]"
-                  : "text-[#5a5a5a] hover:text-[#a0a0a0]"
-              }`}
-            >
-              <BookOpen className="size-3" strokeWidth={1.5} />
-              Training Mode
-            </button>
-          </div>
-
           <button
             onClick={() => setShowRedoConfirm(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-[#5a5a5a] bg-[#161616] border border-[#2a2a2a] hover:text-[#a0a0a0] hover:bg-[#1e1e1e] transition-all duration-150"
@@ -371,209 +344,167 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
         </div>
       </div>
 
-      {/* Training Mode view */}
-      {view === "training" && (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <TrainingReviewPanel sessionId={sessionId} />
-        </div>
-      )}
+      {/* ── Two-column body ─────────────────────────────────────────────────── */}
+      <div className="flex gap-5 flex-1 min-h-0">
 
-      {/* Results view: Two-column scores + summary */}
-      {view === "results" && (
-        <div className="flex gap-5 flex-1 min-h-0 overflow-y-auto">
-          {/* Left: Delivery scores */}
-          <div className="w-72 flex-shrink-0 flex flex-col gap-4">
-            {/* Score card */}
-            <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase">
-                  Delivery Scores
-                </p>
-                {overallDelivery != null && (
-                  <span className={`text-lg font-mono font-bold ${deliveryColor}`}>
-                    {overallDelivery}
-                    <span className="text-xs text-[#3a3a3a] font-normal">/100</span>
-                  </span>
-                )}
-              </div>
-              {scores ? (
-                <div className="flex flex-col gap-3">
-                  <ScoreRow
-                    label="Confidence"
-                    value={scores.confidence}
-                    icon={<Zap className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
-                    delay={100}
-                  />
-                  <ScoreRow
-                    label="Specificity"
-                    value={scores.specificity}
-                    icon={<Target className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
-                    delay={180}
-                  />
-                  <ScoreRow
-                    label="Energy"
-                    value={scores.energy}
-                    icon={<Mic className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
-                    delay={260}
-                  />
-                  <ScoreRow
-                    label="Hesitations"
-                    value={scores.hesitation_count}
-                    icon={<AlertCircle className="size-3.5 text-[#5a5a5a]" strokeWidth={1.5} />}
-                    delay={340}
-                    isCount
-                  />
+        {/* ── LEFT: delivery results — fixed 300px, own scroll ─────────────── */}
+        <div className="w-[300px] flex-shrink-0 min-h-0 overflow-y-auto flex flex-col gap-4 pb-6">
+
+          {/* Stats — compact horizontal rows */}
+          <div className="flex flex-col gap-2">
+            {[
+              {
+                icon: <Clock className="size-3 text-[#C8FF00]" strokeWidth={1.5} />,
+                label: "Duration",
+                value: duration > 0 ? formatDuration(duration) : "—",
+              },
+              {
+                icon: <MessageSquare className="size-3 text-[#C8FF00]" strokeWidth={1.5} />,
+                label: "Sam's Questions",
+                value: String(stats.samTurns),
+              },
+              {
+                icon: <TrendingUp className="size-3 text-[#C8FF00]" strokeWidth={1.5} />,
+                label: "Avg Words / Answer",
+                value: stats.avgWordsPerTurn > 0 ? String(stats.avgWordsPerTurn) : "—",
+              },
+            ].map(({ icon, label, value }, i) => (
+              <div
+                key={label}
+                className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] px-4 py-3 flex items-center gap-3 anim-hidden anim-fade-up"
+                style={{ animationDelay: `${i * 50}ms` }}
+              >
+                <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-[#0A1F12] border border-[#1A3D28]/60 flex-shrink-0">
+                  {icon}
                 </div>
-              ) : (
-                <p className="text-xs text-[#3a3a3a] italic py-2">
-                  Delivery scores will appear after analysis completes.
-                </p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-mono text-[#3a3a3a] tracking-wide uppercase">{label}</p>
+                  <p className="text-sm font-mono font-bold text-[#f0f0f0] leading-tight mt-0.5">{value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Delivery scores */}
+          <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-100">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Delivery</p>
+              {overallDelivery != null && (
+                <span className={`text-sm font-mono font-bold ${deliveryColor}`}>
+                  {overallDelivery}
+                  <span className="text-xs text-[#3a3a3a] font-normal">/100</span>
+                </span>
               )}
             </div>
-
-            {/* Transcript button */}
-            <button
-              onClick={() => setTranscriptOpen(true)}
-              className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-[#2a2a2a] bg-[#161616] hover:border-[#3a3a3a] hover:bg-[#1a1a1a] transition-all duration-150 text-left group"
-            >
-              <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#0A1F12] border border-[#1A3D28]/60 flex-shrink-0">
-                <MessageSquare className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />
+            {scores ? (
+              <div className="flex flex-col gap-2.5">
+                <ScoreRow label="Confidence" value={scores.confidence} icon={<Zap className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />} delay={100} />
+                <ScoreRow label="Specificity" value={scores.specificity} icon={<Target className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />} delay={160} />
+                <ScoreRow label="Energy" value={scores.energy} icon={<Mic className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />} delay={220} />
+                <ScoreRow label="Hesitations" value={scores.hesitation_count} icon={<AlertCircle className="size-3.5 text-[#5a5a5a]" strokeWidth={1.5} />} delay={280} isCount />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-[#a0a0a0] group-hover:text-[#f0f0f0] transition-colors">
-                  View Full Transcript
-                </p>
-                {transcript.length > 0 && (
-                  <p className="text-[10px] text-[#3a3a3a] font-mono mt-0.5">
-                    {transcript.length} turns
-                  </p>
+            ) : (
+              <p className="text-xs text-[#3a3a3a] italic py-1">Scores will appear after analysis completes.</p>
+            )}
+          </div>
+
+          {/* Delivery insight */}
+          {scores && (
+            <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/20 p-4 flex flex-col gap-2 anim-hidden anim-fade-up anim-delay-150">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="size-3 text-[#C8FF00]/60" strokeWidth={1.5} />
+                <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Insight</p>
+              </div>
+              <p className="text-xs text-[#a0a0a0] leading-relaxed">
+                {scores.confidence >= 0.7 && scores.specificity >= 0.7
+                  ? "Strong confident delivery with good specificity. Keep that energy in the next phase."
+                  : scores.specificity < 0.5
+                  ? "Focus on adding more specific numbers, names, and dates in your next pitch attempt."
+                  : scores.confidence < 0.5
+                  ? "Work on projecting more certainty. Avoid hedging phrases like 'kind of' and 'I think'."
+                  : scores.hesitation_count > 7
+                  ? `${scores.hesitation_count} hesitations detected. Practice your key talking points until they feel automatic.`
+                  : "Solid delivery overall. Review Sam's toughest questions in the transcript to prepare for VC deliberation."}
+              </p>
+            </div>
+          )}
+
+          {/* Sam's questions */}
+          {stats.samTurns > 0 && (
+            <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <MessageSquare className="size-3 text-[#C8FF00]/60" strokeWidth={1.5} />
+                  <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Sam's Questions</p>
+                </div>
+                <button
+                  onClick={() => setTranscriptOpen(true)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md border border-[#2a2a2a] bg-[#161616] hover:border-[#3a3a3a] transition-all duration-150 group"
+                >
+                  <span className="text-[9px] font-mono text-[#5a5a5a] group-hover:text-[#a0a0a0] transition-colors">Full transcript</span>
+                  <ArrowRight className="size-2.5 text-[#3a3a3a] group-hover:text-[#5a5a5a] transition-colors" strokeWidth={1.5} />
+                </button>
+              </div>
+              <div className="flex flex-col">
+                {transcript
+                  .filter((t) => t.speaker === "Sam")
+                  .slice(0, 5)
+                  .map((turn, i) => (
+                    <div key={i} className="flex gap-2 items-start py-2 border-b border-[#1a1a1a] last:border-0">
+                      <span className="flex-shrink-0 w-3.5 h-3.5 rounded-full bg-[#1A3D28]/60 border border-[#1A3D28]/40 text-[8px] font-mono text-[#5a5a5a] flex items-center justify-center mt-0.5">
+                        {i + 1}
+                      </span>
+                      <p className="text-[11px] text-[#a0a0a0] leading-relaxed line-clamp-2">{turn.text}</p>
+                    </div>
+                  ))}
+                {stats.samTurns > 5 && (
+                  <button
+                    onClick={() => setTranscriptOpen(true)}
+                    className="text-[10px] text-[#C8FF00]/50 hover:text-[#C8FF00] font-mono transition-colors mt-1.5 text-left"
+                  >
+                    +{stats.samTurns - 5} more
+                  </button>
                 )}
               </div>
-              <ArrowRight className="size-3.5 text-[#3a3a3a] group-hover:text-[#5a5a5a] transition-colors flex-shrink-0" strokeWidth={1.5} />
-            </button>
-
-            {/* Next step nudge */}
-            <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/30 p-4">
-              <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase mb-2">
-                Next
-              </p>
-              <p className="text-xs text-[#a0a0a0] leading-relaxed mb-3">
-                Head to Deck Analysis to see slide-by-slide feedback and narrative scoring.
-              </p>
-              <button
-                onClick={onContinue}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] transition-colors duration-150"
-              >
-                View Deck Analysis
-                <ArrowRight className="size-3" strokeWidth={2} />
-              </button>
             </div>
+          )}
+
+          {/* Next step nudge */}
+          <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/30 p-4 flex flex-col gap-2.5 anim-hidden anim-fade-up">
+            <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Next Step</p>
+            <p className="text-xs text-[#a0a0a0] leading-relaxed">
+              Head to Deck Analysis to see slide-by-slide feedback and narrative scoring.
+            </p>
+            <button
+              onClick={onContinue}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] transition-colors duration-150"
+            >
+              View Deck Analysis
+              <ArrowRight className="size-3" strokeWidth={2} />
+            </button>
           </div>
 
-          {/* Right: Interview summary */}
-          <div className="flex-1 min-w-0 flex flex-col gap-4">
-            {/* Stats row */}
-            <div className="grid grid-cols-3 gap-3 flex-shrink-0">
-              {[
-                {
-                  icon: <Clock className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />,
-                  label: "Duration",
-                  value: duration > 0 ? formatDuration(duration) : "—",
-                },
-                {
-                  icon: <MessageSquare className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />,
-                  label: "Sam's Questions",
-                  value: String(stats.samTurns),
-                },
-                {
-                  icon: <TrendingUp className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />,
-                  label: "Avg Words/Answer",
-                  value: stats.avgWordsPerTurn > 0 ? String(stats.avgWordsPerTurn) : "—",
-                },
-              ].map(({ icon, label, value }, i) => (
-                <div
-                  key={label}
-                  className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex flex-col gap-2 anim-hidden anim-fade-up"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                >
-                  <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#0A1F12] border border-[#1A3D28]/60">
-                    {icon}
-                  </div>
-                  <div>
-                    <p className="text-lg font-mono font-bold text-[#f0f0f0]">{value}</p>
-                    <p className="text-[10px] font-mono text-[#3a3a3a] tracking-wide uppercase mt-0.5">{label}</p>
-                  </div>
-                </div>
-              ))}
+        </div>
+
+        {/* ── Vertical divider ─────────────────────────────────────────────── */}
+        <div className="w-px bg-[#1a1a1a] flex-shrink-0 self-stretch" />
+
+        {/* ── RIGHT: training review — flex-1, own scroll ───────────────────── */}
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
+          <div className="flex items-center gap-2 pb-3 flex-shrink-0 anim-hidden anim-fade-up">
+            <div className="flex items-center justify-center w-5 h-5 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
+              <BookOpen className="size-2.5 text-[#C8FF00]" strokeWidth={1.5} />
             </div>
-
-            {/* Sam's questions list — pulled from transcript */}
-            {stats.samTurns > 0 && (
-              <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-100">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
-                    <MessageSquare className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
-                  </div>
-                  <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
-                    Sam's Questions
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {transcript
-                    .filter((t) => t.speaker === "Sam")
-                    .slice(0, 6)
-                    .map((turn, i) => (
-                      <div
-                        key={i}
-                        className="flex gap-2.5 items-start py-2 border-b border-[#1a1a1a] last:border-0"
-                      >
-                        <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#1A3D28]/60 border border-[#1A3D28]/40 text-[9px] font-mono text-[#5a5a5a] flex items-center justify-center mt-0.5">
-                          {i + 1}
-                        </span>
-                        <p className="text-xs text-[#a0a0a0] leading-relaxed line-clamp-2">
-                           {turn.text}
-                        </p>
-                      </div>
-                    ))}
-                  {stats.samTurns > 6 && (
-                    <button
-                      onClick={() => setTranscriptOpen(true)}
-                      className="text-[10px] text-[#C8FF00]/60 hover:text-[#C8FF00] font-mono transition-colors mt-1 text-left"
-                    >
-                      +{stats.samTurns - 6} more — view full transcript
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Delivery insight */}
-            {scores && (
-              <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/20 p-5 flex flex-col gap-3 anim-hidden anim-fade-up anim-delay-200">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A1F12] border border-[#1A3D28]/60">
-                    <TrendingUp className="size-3 text-[#C8FF00]" strokeWidth={1.5} />
-                  </div>
-                  <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
-                    Delivery Insight
-                  </p>
-                </div>
-                <p className="text-xs text-[#a0a0a0] leading-relaxed">
-                  {scores.confidence >= 0.7 && scores.specificity >= 0.7
-                    ? "Strong confident delivery with good specificity. Keep that energy in the next phase."
-                    : scores.specificity < 0.5
-                    ? "Focus on adding more specific numbers, names, and dates in your next pitch attempt."
-                    : scores.confidence < 0.5
-                    ? "Work on projecting more certainty. Avoid hedging phrases like 'kind of' and 'I think'."
-                    : scores.hesitation_count > 7
-                    ? `${scores.hesitation_count} hesitations detected. Practice your key talking points until they feel automatic.`
-                    : "Solid delivery overall. Review Sam's toughest questions in the transcript to prepare for VC deliberation."}
-                </p>
-              </div>
-            )}
+            <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Training Review</p>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <TrainingReviewPanel sessionId={sessionId} />
           </div>
         </div>
-      )}
+
+      </div>
+
+      </div>{/* end max-w-7xl */}
 
       {/* Transcript slide-over drawer */}
       <TranscriptDrawer

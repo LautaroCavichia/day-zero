@@ -304,16 +304,21 @@ export function HeroSessionCard({
       onClick={handleOpen}
       className={`group relative rounded-2xl border cursor-pointer overflow-hidden transition-all duration-300 ${
         hasVerdict
-          ? "border-[#2a2a2a] hover:border-[#3a3a3a] bg-[#0c0c0c]"
-          : "border-[#1e1e1e] hover:border-[#2a2a2a] bg-[#0a0a0a]"
+          ? "border-[#303030] hover:border-[#424242] bg-[#0f0f0f]"
+          : "border-[#262626] hover:border-[#323232] bg-[#0b0b0b]"
       }`}
+      style={{
+        boxShadow: hasVerdict
+          ? "0 1px 0 0 rgba(255,255,255,0.055) inset, 0 8px 40px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4)"
+          : "0 1px 0 0 rgba(255,255,255,0.035) inset, 0 6px 32px rgba(0,0,0,0.45), 0 1px 6px rgba(0,0,0,0.3)",
+      }}
     >
       {/* Radial glow behind — only for completed sessions */}
       {hasVerdict && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: `radial-gradient(ellipse 55% 80% at 15% 50%, ${accentColor}08 0%, transparent 65%)`,
+            background: `radial-gradient(ellipse 55% 80% at 15% 50%, ${accentColor}10 0%, transparent 62%)`,
           }}
         />
       )}
@@ -510,7 +515,10 @@ export default function SessionCard({ summary, onDelete }: SessionCardProps) {
   return (
     <div
       onClick={handleOpen}
-      className="group relative rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] hover:border-[#2e2e2e] hover:bg-[#0e0e0e] transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative rounded-xl border border-[#272727] bg-[#0d0d0d] hover:border-[#343434] hover:bg-[#101010] transition-all duration-200 cursor-pointer overflow-hidden"
+      style={{
+        boxShadow: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 4px 20px rgba(0,0,0,0.45), 0 1px 4px rgba(0,0,0,0.3)",
+      }}
     >
       {/* Top accent line */}
       <div
@@ -642,8 +650,11 @@ export function NewSessionCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group relative rounded-xl border border-dashed border-[#2a2a2a] bg-transparent hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/[0.02] transition-all duration-250 cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-4 p-6"
-      style={{ minHeight: 160 }}
+      className="group relative rounded-xl border border-dashed border-[#2e2e2e] bg-[#0a0a0a] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/[0.025] transition-all duration-250 cursor-pointer overflow-hidden flex flex-col items-center justify-center gap-4 p-6"
+      style={{
+        minHeight: 160,
+        boxShadow: "0 1px 0 0 rgba(255,255,255,0.025) inset, 0 4px 20px rgba(0,0,0,0.4)",
+      }}
     >
       {/* Glow on hover */}
       <div

@@ -436,7 +436,7 @@ export default function VerdictComponent({ verdict, deliberationStatus }: Verdic
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-8 max-w-5xl mx-auto w-full">
+    <div className="flex flex-col gap-6 pb-8 max-w-7xl mx-auto w-full">
       {/* Page header */}
       <div className="page-load-item" style={{ animationDelay: "0ms" }}>
         <div className="flex items-center justify-between">
