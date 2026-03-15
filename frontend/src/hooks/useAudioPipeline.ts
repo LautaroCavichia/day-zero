@@ -70,7 +70,7 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
 
   const startMicLevelLoop = useCallback((analyser: AnalyserNode, data: Uint8Array) => {
     const tick = () => {
-      analyser.getByteFrequencyData(data);
+      analyser.getByteFrequencyData(data as Uint8Array<ArrayBuffer>);
       let sum = 0;
       for (let i = 0; i < data.length; i++) sum += data[i];
       const avg = sum / data.length / 255;

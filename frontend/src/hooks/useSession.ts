@@ -24,6 +24,7 @@ export interface UseSessionReturn {
   loadSession: (id: string) => Promise<void>;
   setActivePhase: (phase: WorkflowPhase) => void;
   refresh: () => Promise<void>;
+  startPolling: () => void;
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -158,6 +159,12 @@ export function useSession(): UseSessionReturn {
     await fetchState(sessionId);
   }, [sessionId, fetchState]);
 
+  // Manually kick off polling (e.g. after interview ends to watch background tasks)
+  const startPolling = useCallback(() => {
+    if (!sessionId) return;
+    schedulePolling(sessionId);
+  }, [sessionId, schedulePolling]);
+
   const phaseStatuses = derivePhaseStatuses(sessionState, activePhase);
 
   return {
@@ -171,5 +178,6 @@ export function useSession(): UseSessionReturn {
     loadSession,
     setActivePhase,
     refresh,
+    startPolling,
   };
 }

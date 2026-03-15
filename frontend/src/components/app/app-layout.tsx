@@ -7,7 +7,7 @@ import AppNav from "@/components/app/app-nav";
 import AppSidebar from "@/components/app/app-sidebar";
 import GrainOverlay from "@/components/shared/grain-overlay";
 import type { PhaseStatuses } from "@/hooks/useSession";
-import type { WorkflowPhase } from "@/types/session";
+import type { TaskStatusValue, WorkflowPhase } from "@/types/session";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -15,6 +15,14 @@ interface AppLayoutProps {
   activePhase: WorkflowPhase;
   phaseStatuses: PhaseStatuses;
   onSelectPhase: (phase: WorkflowPhase) => void;
+  marketIntelStatus?: TaskStatusValue;
+  deliberationStatus?: TaskStatusValue;
+  /** Whether a live interview call is currently in progress */
+  interviewIsActive?: boolean;
+  /** Whether the interview has been completed at least once */
+  interviewDone?: boolean;
+  /** Elapsed seconds of the current (or last) interview call */
+  interviewElapsed?: number;
 }
 
 export default function AppLayout({
@@ -23,6 +31,10 @@ export default function AppLayout({
   activePhase,
   phaseStatuses,
   onSelectPhase,
+  marketIntelStatus,
+  deliberationStatus,
+  interviewIsActive = false,
+  interviewDone = false,
 }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -41,6 +53,10 @@ export default function AppLayout({
         activePhase={activePhase}
         phaseStatuses={phaseStatuses}
         onSelectPhase={onSelectPhase}
+        marketIntelStatus={marketIntelStatus}
+        deliberationStatus={deliberationStatus}
+        interviewIsActive={interviewIsActive}
+        interviewDone={interviewDone}
       />
 
       {/* Main content — offset for nav (top-14) and sidebar width */}

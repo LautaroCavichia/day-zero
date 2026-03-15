@@ -3,18 +3,22 @@
 // The main workspace UI. Loads the session, renders the AppLayout with
 // sidebar, and shows the appropriate phase panel.
 //
-// Phase 1 (Live Interview) is the only implemented phase so far.
-// Phases 2–5 render a placeholder "coming soon" card until built out.
+// Navigation guards:
+//   - While an interview is active, clicking another phase shows a confirm dialog.
+//   - Returning to Phase 1 after a completed interview shows the post-interview view.
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/app/app-layout";
 import LiveInterview from "@/components/session/live-interview";
+import type { InterviewLifecycle } from "@/components/session/live-interview";
+import DeckAnalysis from "@/components/session/deck-analysis";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useSession } from "@/hooks/useSession";
 import type { WorkflowPhase } from "@/types/session";
 import { Lock } from "lucide-react";
 
-// ─── Placeholder for phases 2–5 ───────────────────────────────────────────────
+// ─── Placeholder for phases 3–5 ───────────────────────────────────────────────
 function PhasePlaceholder({ phase }: { phase: WorkflowPhase }) {
   const labels: Record<WorkflowPhase, string> = {
     1: "Live Interview",
@@ -43,8 +47,26 @@ function PhasePlaceholder({ phase }: { phase: WorkflowPhase }) {
         <p className="text-sm text-[#5a5a5a] max-w-xs">{descriptions[phase]}</p>
       </div>
       <p className="text-xs font-mono text-[#3a3a3a]">
-        Complete Phase 1 to unlock this phase.
+        Complete earlier phases to unlock this one.
       </p>
+    </div>
+  );
+}
+
+// ─── Phase content wrapper with entrance animation ────────────────────────────
+function PhasePanel({
+  phaseKey,
+  children,
+}: {
+  phaseKey: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      key={phaseKey}
+      className="h-full animate-[phase-enter_0.35s_cubic-bezier(0.22,1,0.36,1)_both]"
+    >
+      {children}
     </div>
   );
 }
@@ -56,7 +78,19 @@ export default function SessionWorkspace() {
 
   const session = useSession();
 
-  // Load session on mount
+  // Track whether an interview call is currently live (for nav guard)
+  const [interviewIsActive, setInterviewIsActive] = useState(false);
+
+  // Navigation guard: if user clicks a phase while interview is active,
+  // store the requested phase here and show a confirm dialog first
+  const [pendingPhase, setPendingPhase] = useState<WorkflowPhase | null>(null);
+
+  // Track the lifecycle to pass to LiveInterview when mounting / re-mounting
+  // "pre" = first time or after redo, "post" = returning after completed interview
+  const [interviewLifecycle, setInterviewLifecycle] = useState<InterviewLifecycle>("pre");
+  const interviewDoneRef = useRef(false); // whether a full interview has been done this session
+
+  // ─── Load session on mount ─────────────────────────────────────────────────
   useEffect(() => {
     if (!sessionId) {
       navigate("/app");
@@ -66,7 +100,7 @@ export default function SessionWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Redirect to /app if session not found after load attempt
+  // ─── Redirect to /app if session not found ────────────────────────────────
   useEffect(() => {
     if (!session.isLoading && session.error && !session.sessionState) {
       navigate("/app");
@@ -74,11 +108,74 @@ export default function SessionWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.isLoading, session.error, session.sessionState]);
 
-  // ─── Handle interview ended → advance to phase 2 ──────────────────────────
-  const handleInterviewEnded = () => {
+  // ─── Derive initial interview lifecycle from session state ────────────────
+  // When the session loads and already has a transcript, the interview was done.
+  useEffect(() => {
+    if (!session.sessionState) return;
+    const hasTranscript = (session.sessionState.live_transcript?.length ?? 0) > 0;
+    if (hasTranscript && !interviewDoneRef.current) {
+      interviewDoneRef.current = true;
+      // Only switch to post if we're still on phase 1
+      if (session.activePhase === 1) {
+        setInterviewLifecycle("post");
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.sessionState]);
+
+  // ─── Handle interview ended (live call finished) ───────────────────────────
+  const handleInterviewEnded = useCallback(() => {
+    interviewDoneRef.current = true;
     session.refresh();
+    session.startPolling();
+  }, [session]);
+
+  // ─── Handle "Continue to Deck Analysis" from post-interview view ──────────
+  const handleInterviewContinue = useCallback(() => {
     session.setActivePhase(2);
-  };
+  }, [session]);
+
+  // ─── Phase selection with nav guard ───────────────────────────────────────
+  const handleSelectPhase = useCallback(
+    (phase: WorkflowPhase) => {
+      if (interviewIsActive) {
+        // Block navigation — show confirm dialog
+        setPendingPhase(phase);
+        return;
+      }
+
+      // If navigating back to phase 1 after interview completed, show post view
+      if (phase === 1 && interviewDoneRef.current) {
+        setInterviewLifecycle("post");
+      } else if (phase === 1) {
+        setInterviewLifecycle("pre");
+      }
+
+      session.setActivePhase(phase);
+    },
+    [interviewIsActive, session]
+  );
+
+  // ─── Confirm navigation away from active call ─────────────────────────────
+  const handleNavConfirm = useCallback(() => {
+    // The interview component's own end-call logic handles WebSocket cleanup
+    // when it unmounts (via cleanup in useLiveInterview effect). We just navigate.
+    const target = pendingPhase!;
+    setPendingPhase(null);
+    setInterviewIsActive(false);
+
+    if (target === 1 && interviewDoneRef.current) {
+      setInterviewLifecycle("post");
+    } else if (target === 1) {
+      setInterviewLifecycle("pre");
+    }
+
+    session.setActivePhase(target);
+  }, [pendingPhase, session]);
+
+  const handleNavCancel = useCallback(() => {
+    setPendingPhase(null);
+  }, []);
 
   // ─── Phase panel renderer ─────────────────────────────────────────────────
   const renderPhase = () => {
@@ -88,11 +185,24 @@ export default function SessionWorkspace() {
       case 1:
         return (
           <LiveInterview
+            key={interviewLifecycle === "pre" ? "pre" : "post-or-active"}
             sessionId={sessionId}
+            initialLifecycle={interviewLifecycle}
+            savedTranscript={session.sessionState?.live_transcript ?? []}
+            savedScores={session.sessionState?.delivery_scores ?? null}
             onInterviewEnded={handleInterviewEnded}
+            onContinue={handleInterviewContinue}
+            onActiveStateChange={setInterviewIsActive}
           />
         );
       case 2:
+        return (
+          <DeckAnalysis
+            critique={session.sessionState?.deck_critique ?? null}
+            slideImages={session.sessionState?.slide_images ?? []}
+            isLoading={session.isLoading && !session.sessionState}
+          />
+        );
       case 3:
       case 4:
       case 5:
@@ -112,16 +222,40 @@ export default function SessionWorkspace() {
     );
   }
 
+  const companyName =
+    session.sessionState?.pitch_context?.company_name?.trim() || undefined;
+  const sessionLabel =
+    companyName ?? (sessionId ? `Session ${sessionId.slice(0, 8)}` : undefined);
+
   return (
     <div className="dark">
       <AppLayout
-        sessionName={sessionId ? `Session ${sessionId.slice(0, 8)}` : undefined}
+        sessionName={sessionLabel}
         activePhase={session.activePhase}
         phaseStatuses={session.phaseStatuses}
-        onSelectPhase={(phase: WorkflowPhase) => session.setActivePhase(phase)}
+        onSelectPhase={handleSelectPhase}
+        marketIntelStatus={session.sessionState?.market_intel_status?.status}
+        deliberationStatus={session.sessionState?.deliberation_status?.status}
+        interviewIsActive={interviewIsActive}
+        interviewDone={interviewDoneRef.current}
+        interviewElapsed={0}
       >
-        {renderPhase()}
+        <PhasePanel phaseKey={String(session.activePhase)}>
+          {renderPhase()}
+        </PhasePanel>
       </AppLayout>
+
+      {/* Navigation-away confirm dialog */}
+      <ConfirmDialog
+        open={pendingPhase !== null}
+        title="Leave interview?"
+        message="Your interview is still in progress. Leaving now will end the call. Your transcript so far will be saved."
+        confirmLabel="End & Leave"
+        cancelLabel="Stay in Interview"
+        variant="danger"
+        onConfirm={handleNavConfirm}
+        onCancel={handleNavCancel}
+      />
     </div>
   );
 }

@@ -1,10 +1,12 @@
 // ─── AppSidebar ───────────────────────────────────────────────────────────────
 // Collapsible sidebar showing the 5 workflow phases.
 // States per phase: active (chartreuse), done (muted green), locked (disabled), available.
+// Phases 3 & 4 show a spinner + status text when background tasks are running.
+// Phase 1 shows live interview state when a call is active.
 
-import { Check, Lock } from "lucide-react";
+import { Check, Lock, Loader, Radio } from "lucide-react";
 import type { PhaseStatuses } from "@/hooks/useSession";
-import type { WorkflowPhase } from "@/types/session";
+import type { TaskStatusValue, WorkflowPhase } from "@/types/session";
 import { WORKFLOW_PHASES } from "@/types/session";
 
 interface AppSidebarProps {
@@ -12,6 +14,42 @@ interface AppSidebarProps {
   activePhase: WorkflowPhase;
   phaseStatuses: PhaseStatuses;
   onSelectPhase: (phase: WorkflowPhase) => void;
+  marketIntelStatus?: TaskStatusValue;
+  deliberationStatus?: TaskStatusValue;
+  /** Whether a live interview call is currently in progress */
+  interviewIsActive?: boolean;
+  /** Whether the interview has been completed at least once */
+  interviewDone?: boolean;
+}
+
+// Dynamic subtitle for each phase
+function phaseSubtitle(
+  phase: WorkflowPhase,
+  status: string,
+  marketStatus?: TaskStatusValue,
+  debateStatus?: TaskStatusValue,
+  interviewIsActive?: boolean,
+  interviewDone?: boolean,
+): string | null {
+  if (phase === 1) {
+    if (interviewIsActive) return "Interview in progress";
+    if (interviewDone && status !== "active") return "Completed";
+  }
+  if (phase === 3) {
+    if (marketStatus === "running") return "Researching…";
+    if (marketStatus === "failed") return "Research failed";
+    if (marketStatus === "completed") return "Research complete";
+  }
+  if (phase === 4) {
+    if (debateStatus === "running") return "Deliberating…";
+    if (debateStatus === "failed") return "Deliberation failed";
+    if (debateStatus === "completed") return "Panel complete";
+  }
+  return null;
+}
+
+function taskIsRunning(phase: WorkflowPhase, marketStatus?: TaskStatusValue, debateStatus?: TaskStatusValue): boolean {
+  return (phase === 3 && marketStatus === "running") || (phase === 4 && debateStatus === "running");
 }
 
 export default function AppSidebar({
@@ -19,6 +57,10 @@ export default function AppSidebar({
   activePhase,
   phaseStatuses,
   onSelectPhase,
+  marketIntelStatus,
+  deliberationStatus,
+  interviewIsActive = false,
+  interviewDone = false,
 }: AppSidebarProps) {
   return (
     <aside
@@ -47,6 +89,20 @@ export default function AppSidebar({
           const isLocked = status === "locked";
           const isDone = status === "done";
           const isAvailable = status === "available" || isActive;
+          const running = taskIsRunning(phase, marketIntelStatus, deliberationStatus);
+          const isInterviewLive = phase === 1 && interviewIsActive;
+
+          const subtitle = phaseSubtitle(
+            phase,
+            status,
+            marketIntelStatus,
+            deliberationStatus,
+            interviewIsActive,
+            interviewDone,
+          );
+          const hasFailed =
+            (phase === 3 && marketIntelStatus === "failed") ||
+            (phase === 4 && deliberationStatus === "failed");
 
           return (
             <button
@@ -54,7 +110,7 @@ export default function AppSidebar({
               disabled={isLocked}
               onClick={() => !isLocked && onSelectPhase(phase)}
               className={`
-                w-full flex items-center gap-3 px-4 py-3
+                relative w-full flex items-center gap-3 px-4 py-3
                 text-left transition-all duration-200
                 ${isLocked ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
                 ${isActive
@@ -76,6 +132,8 @@ export default function AppSidebar({
                     ? "bg-[#1A3D28] border-[#3D5A4A] text-[#C8FF00]"
                     : isLocked
                     ? "bg-transparent border-[#2a2a2a] text-[#3a3a3a]"
+                    : running || isInterviewLive
+                    ? "bg-transparent border-[#3a3a3a] text-[#5a5a5a]"
                     : "bg-transparent border-[#3a3a3a] text-[#a0a0a0]"}
                 `}
               >
@@ -83,6 +141,10 @@ export default function AppSidebar({
                   <Check className="size-3" strokeWidth={2.5} />
                 ) : isLocked ? (
                   <Lock className="size-3" strokeWidth={2} />
+                ) : running ? (
+                  <Loader className="size-3 animate-spin" strokeWidth={2} />
+                ) : isInterviewLive ? (
+                  <Radio className="size-3" strokeWidth={2} />
                 ) : (
                   phase
                 )}
@@ -99,10 +161,23 @@ export default function AppSidebar({
                   >
                     {label}
                   </p>
-                  <p className="text-xs text-[#5a5a5a] mt-0.5 truncate leading-tight">
-                    {description}
+                  <p
+                    className={`text-xs mt-0.5 truncate leading-tight transition-colors duration-300 ${
+                      running || isInterviewLive
+                        ? "text-[#C8FF00]/60"
+                        : hasFailed
+                        ? "text-red-400/60"
+                        : "text-[#5a5a5a]"
+                    }`}
+                  >
+                    {subtitle ?? description}
                   </p>
                 </div>
+              )}
+
+              {/* Running/live dot indicator when collapsed */}
+              {!open && (running || isInterviewLive) && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#C8FF00]/60 animate-pulse" />
               )}
             </button>
           );
@@ -112,7 +187,14 @@ export default function AppSidebar({
       {/* Bottom — session info when open */}
       {open && (
         <div className="px-5 py-4 border-t border-[#1e1e1e]">
-          <p className="text-xs text-[#5a5a5a] font-mono">Phase {activePhase} of 5</p>
+          {interviewIsActive ? (
+            <p className="text-xs text-[#C8FF00]/50 font-mono flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF00]/60 animate-pulse inline-block" />
+              Interview live
+            </p>
+          ) : (
+            <p className="text-xs text-[#5a5a5a] font-mono">Phase {activePhase} of 5</p>
+          )}
         </div>
       )}
     </aside>

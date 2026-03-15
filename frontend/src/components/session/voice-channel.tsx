@@ -27,10 +27,10 @@ function formatElapsed(seconds: number): string {
 
 const STATUS_LABELS: Record<InterviewStatus, string> = {
   idle: "Ready to connect",
-  connecting: "Connecting to Sam...",
-  connected: "Connected",
+  connecting: "Connecting to Sam…",
+  connected: "Connected — Sam will start shortly",
   "sam-speaking": "Sam is speaking",
-  listening: "Sam is listening",
+  listening: "Your turn to speak",
   ended: "Interview ended",
   error: "Connection error",
 };
@@ -109,7 +109,19 @@ export default function VoiceChannel({
 
       {/* Controls */}
       {isActive && (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col items-center gap-3">
+          {/* Mic prompt when connected but muted */}
+          {!isMicActive && interviewStatus === "listening" && (
+            <p className="text-[11px] text-[#C8FF00]/60 font-mono text-center animate-pulse">
+              Tap mic to speak
+            </p>
+          )}
+          {!isMicActive && interviewStatus === "connected" && (
+            <p className="text-[11px] text-[#5a5a5a] font-mono text-center">
+              Unmute to respond
+            </p>
+          )}
+          <div className="flex items-center gap-3">
           {/* Mic toggle */}
           <div className="flex flex-col items-center gap-1.5">
             <button
@@ -157,6 +169,7 @@ export default function VoiceChannel({
             </button>
             <span className="text-[10px] font-mono text-[#5a5a5a]">End</span>
           </div>
+          </div>{/* end flex items-center gap-3 */}
         </div>
       )}
 

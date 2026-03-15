@@ -155,7 +155,7 @@ export interface FinalVerdict {
   recommended_pivot: string | null;
   next_steps: string[];
   investment_thesis: string;
-  all_sources: string[];
+  all_sources: SourceCitation[]; // fixed: backend returns objects, not strings
 }
 
 // ─── Task Status ──────────────────────────────────────────────────────────────

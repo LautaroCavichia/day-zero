@@ -41,7 +41,7 @@ export function useAudioAnalyser(): UseAudioAnalyserReturn {
         return;
       }
 
-      analyser.getByteFrequencyData(data);
+      analyser.getByteFrequencyData(data as Uint8Array<ArrayBuffer>);
 
       // Compute RMS from frequency bin magnitudes
       let sumSq = 0;
