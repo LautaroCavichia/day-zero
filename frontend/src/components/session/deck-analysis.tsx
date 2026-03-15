@@ -15,7 +15,6 @@ import {
   LayoutGrid,
   Minus,
   Plus,
-  ChevronDown,
   Sparkles,
   ArrowRight,
   Upload,
@@ -127,126 +126,24 @@ function OverallSummary({ summary }: { summary: string }) {
   );
 }
 
-// ─── Individual Slide Card ────────────────────────────────────────────────────
+// ─── Slide Detail View (Master-Detail) ───────────────────────────────────────
 
-function SlideCard({
-  slide,
-  image,
-  index,
-  animDelay,
-}: {
-  slide: SlideNote;
-  image?: string;
-  index: number;
-  animDelay: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [ref, inView] = useInView();
-
-  return (
-    <div
-      ref={ref as React.RefObject<HTMLDivElement>}
-      className={`anim-hidden ${inView ? "anim-scale-up" : ""}`}
-      style={{ animationDelay: `${animDelay}ms` }}
-    >
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className={`
-          w-full text-left rounded-xl border bg-[#0c0c0c]
-          transition-all duration-200
-          ${expanded
-            ? "border-[#C8FF00]/20 bg-[rgba(200,255,0,0.02)]"
-            : "border-[#1e1e1e] hover:border-[#2a2a2a] hover:bg-[#0f0f0f]"}
-        `}
-      >
-        {/* Thumbnail row */}
-        <div className="flex gap-3 p-4 items-start">
-          {/* Thumbnail */}
-          <div className="flex-shrink-0 w-20 h-[45px] rounded-md overflow-hidden border border-[#1e1e1e] bg-[#161616] flex items-center justify-center">
-            {image ? (
-              <img
-                src={`data:image/png;base64,${image}`}
-                alt={`Slide ${index + 1}`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-[10px] font-mono text-[#3a3a3a]">{index + 1}</span>
-            )}
-          </div>
-
-          {/* Header info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
-                Slide {slide.index}
-              </span>
-              <span className={`text-sm font-mono font-semibold ${scoreColor(slide.score)}`}>
-                {slide.score.toFixed(1)}
-              </span>
-            </div>
-            <p className="text-sm font-medium text-[#f0f0f0] leading-tight truncate">
-              {slide.title}
-            </p>
-            {/* Mini score bar */}
-            <div className="mt-2">
-              <ScoreBar score={slide.score} max={10} delay={animDelay + 300} />
-            </div>
-          </div>
-
-          {/* Expand icon */}
-          <div className="flex-shrink-0 ml-1">
-            <ChevronDown
-              className={`size-4 text-[#5a5a5a] transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
-              strokeWidth={1.5}
-            />
-          </div>
-        </div>
-
-        {/* Expanded: full-size slide + critique */}
-        <div
-          className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
-          }`}
-        >
-          <div className="px-4 pb-4 flex flex-col gap-3 border-t border-[#1e1e1e]">
-            {/* Full-size slide image */}
-            {image && (
-              <div className="mt-3 rounded-lg overflow-hidden border border-[#1e1e1e] bg-[#161616]">
-                <img
-                  src={`data:image/png;base64,${image}`}
-                  alt={`Slide ${index + 1} full`}
-                  className="w-full h-auto object-contain"
-                />
-              </div>
-            )}
-
-            {/* Critique */}
-            <div className="flex gap-2 items-start">
-              <div className="flex-shrink-0 mt-0.5 flex items-center justify-center w-5 h-5 rounded bg-[#0A1F12] border border-[#1A3D28]/60">
-                <Sparkles className="size-2.5 text-[#C8FF00]" strokeWidth={1.5} />
-              </div>
-              <p className="text-sm text-[#a0a0a0] leading-relaxed">{slide.critique}</p>
-            </div>
-          </div>
-        </div>
-      </button>
-    </div>
-  );
-}
-
-// ─── Slide Grid ───────────────────────────────────────────────────────────────
-
-function SlideGrid({
+function SlideDetailView({
   slides,
   images,
 }: {
   slides: SlideNote[];
   images: string[];
 }) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [ref, inView] = useInView();
+
+  const selected = slides[selectedIndex];
+  const selectedImage = images[selectedIndex];
 
   return (
     <div ref={ref as React.RefObject<HTMLDivElement>}>
+      {/* Section header */}
       <div
         className={`flex items-center justify-between mb-3 anim-hidden ${inView ? "anim-fade-up" : ""}`}
       >
@@ -256,16 +153,109 @@ function SlideGrid({
         <span className="text-xs font-mono text-[#5a5a5a]">{slides.length} slides</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {slides.map((slide, i) => (
-          <SlideCard
-            key={slide.index}
-            slide={slide}
-            image={images[i]}
-            index={i}
-            animDelay={i * 50}
-          />
-        ))}
+      {/* Master-detail layout */}
+      <div
+        className={`flex gap-4 anim-hidden ${inView ? "anim-fade-up anim-delay-100" : ""}`}
+      >
+        {/* Left: slide list */}
+        <div className="w-[260px] flex-shrink-0 flex flex-col gap-1 max-h-[540px] overflow-y-auto pr-1">
+          {slides.map((slide, i) => {
+            const isSelected = i === selectedIndex;
+            return (
+              <button
+                key={slide.index}
+                onClick={() => setSelectedIndex(i)}
+                className={`
+                  w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg
+                  transition-all duration-150 flex-shrink-0
+                  ${isSelected
+                    ? "bg-[rgba(200,255,0,0.06)] border border-[#C8FF00]/20"
+                    : "border border-transparent hover:bg-[#0f0f0f] hover:border-[#1e1e1e]"}
+                `}
+              >
+                {/* Thumbnail */}
+                <div className="flex-shrink-0 w-16 h-9 rounded overflow-hidden border border-[#1e1e1e] bg-[#161616] flex items-center justify-center">
+                  {images[i] ? (
+                    <img
+                      src={`data:image/png;base64,${images[i]}`}
+                      alt={`Slide ${i + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[9px] font-mono text-[#3a3a3a]">{i + 1}</span>
+                  )}
+                </div>
+
+                {/* Title + score */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span className="text-[9px] font-mono text-[#5a5a5a] uppercase tracking-wider">
+                      {i + 1}
+                    </span>
+                    <span className={`text-[10px] font-mono font-semibold ${scoreColor(slide.score)}`}>
+                      {slide.score.toFixed(1)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#c0c0c0] leading-tight truncate">
+                    {slide.title}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: selected slide detail */}
+        {selected && (
+          <div className="flex-1 min-w-0 rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] overflow-hidden">
+            {/* Slide image */}
+            <div className="border-b border-[#1e1e1e] bg-[#080808]">
+              {selectedImage ? (
+                <img
+                  src={`data:image/png;base64,${selectedImage}`}
+                  alt={`Slide ${selectedIndex + 1}`}
+                  className="w-full h-auto object-contain"
+                />
+              ) : (
+                <div className="aspect-[16/9] flex items-center justify-center">
+                  <span className="text-xs font-mono text-[#3a3a3a]">No image</span>
+                </div>
+              )}
+            </div>
+
+            {/* Slide info + critique */}
+            <div className="p-5 flex flex-col gap-3">
+              {/* Title row */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase block mb-1">
+                    Slide {selected.index}
+                  </span>
+                  <h4 className="text-sm font-semibold text-[#f0f0f0] leading-snug">
+                    {selected.title}
+                  </h4>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <span className={`text-xl font-mono font-semibold ${scoreColor(selected.score)}`}>
+                    {selected.score.toFixed(1)}
+                    <span className="text-sm text-[#3a3a3a] font-mono">/10</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Score bar */}
+              <ScoreBar score={selected.score} max={10} delay={100} />
+
+              {/* Critique */}
+              <div className="flex gap-2 items-start pt-1">
+                <div className="flex-shrink-0 mt-0.5 flex items-center justify-center w-5 h-5 rounded bg-[#0A1F12] border border-[#1A3D28]/60">
+                  <Sparkles className="size-2.5 text-[#C8FF00]" strokeWidth={1.5} />
+                </div>
+                <p className="text-sm text-[#a0a0a0] leading-relaxed">{selected.critique}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -385,7 +375,7 @@ function StrengthsPanel({ strengths }: { strengths: string[] }) {
 
 function DeckAnalysisLoading() {
   return (
-    <div className="flex flex-col gap-6 pb-8 animate-[fade-in_0.4s_ease_both]">
+    <div className="flex flex-col gap-6 pb-8 max-w-6xl mx-auto w-full animate-[fade-in_0.4s_ease_both]">
       {/* Skeleton header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
@@ -410,25 +400,31 @@ function DeckAnalysisLoading() {
         ))}
       </div>
 
-      {/* Skeleton slide grid */}
+      {/* Skeleton slide master-detail */}
       <div>
         <div className="h-3.5 w-24 rounded-md bg-[#1e1e1e] animate-pulse mb-4" />
-        <div className="grid grid-cols-2 gap-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex flex-col gap-3"
-            >
-              <div
-                className="w-full rounded-lg bg-[#161616] animate-pulse"
-                style={{ aspectRatio: "16/9" }}
-              />
-              <div className="flex items-center justify-between">
-                <div className="h-3.5 w-24 rounded-md bg-[#1e1e1e] animate-pulse" />
-                <div className="h-3.5 w-8 rounded-md bg-[#1e1e1e] animate-pulse" />
+        <div className="flex gap-4">
+          {/* Left list skeleton */}
+          <div className="w-[260px] flex-shrink-0 flex flex-col gap-1">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#1e1e1e] bg-[#0c0c0c]">
+                <div className="w-16 h-9 rounded bg-[#161616] animate-pulse flex-shrink-0" />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="h-2.5 w-16 rounded bg-[#1e1e1e] animate-pulse" />
+                  <div className="h-2.5 w-24 rounded bg-[#161616] animate-pulse" />
+                </div>
               </div>
+            ))}
+          </div>
+          {/* Right detail skeleton */}
+          <div className="flex-1 rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] overflow-hidden">
+            <div className="w-full animate-pulse bg-[#161616]" style={{ aspectRatio: "16/9" }} />
+            <div className="p-5 flex flex-col gap-3">
+              <div className="h-4 w-32 rounded bg-[#1e1e1e] animate-pulse" />
+              <div className="h-3 w-full rounded bg-[#161616] animate-pulse" />
+              <div className="h-3 w-5/6 rounded bg-[#161616] animate-pulse" />
             </div>
-          ))}
+          </div>
         </div>
       </div>
 
@@ -501,7 +497,7 @@ export default function DeckAnalysis({
   if (!critique) return <DeckAnalysisEmpty />;
 
   return (
-    <div className="flex flex-col gap-6 pb-8">
+      <div className="flex flex-col gap-6 pb-8 max-w-6xl mx-auto w-full">
       {/* Hidden file input for re-upload */}
       {onReupload && (
         <input
@@ -585,9 +581,9 @@ export default function DeckAnalysis({
         <OverallSummary summary={critique.overall_summary} />
       )}
 
-      {/* Slide grid */}
+      {/* Slide detail view */}
       {critique.slides.length > 0 && (
-        <SlideGrid slides={critique.slides} images={slideImages} />
+        <SlideDetailView slides={critique.slides} images={slideImages} />
       )}
 
       {/* Issues + Missing */}

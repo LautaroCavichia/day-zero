@@ -59,6 +59,10 @@ export default function SessionWorkspace() {
   // Track whether an interview call is currently live (for nav guard)
   const [interviewIsActive, setInterviewIsActive] = useState(false);
 
+  // Local trigger error state for market intel and deliberation
+  const [marketTriggerError, setMarketTriggerError] = useState<string | null>(null);
+  const [deliberationTriggerError, setDeliberationTriggerError] = useState<string | null>(null);
+
   // Navigation guard: if user clicks a phase while interview is active,
   // store the requested phase here and show a confirm dialog first
   const [pendingPhase, setPendingPhase] = useState<WorkflowPhase | null>(null);
@@ -193,15 +197,29 @@ export default function SessionWorkspace() {
           <MarketIntelComponent
             marketIntel={session.sessionState?.market_intel ?? null}
             status={session.sessionState?.market_intel_status?.status ?? "idle"}
-            statusError={session.sessionState?.market_intel_status?.error}
-            canTrigger={!!session.sessionState?.pitch_context}
+            statusError={session.sessionState?.market_intel_status?.error ?? marketTriggerError}
+            canTrigger={
+              !!session.sessionState?.pitch_context &&
+              Object.values(session.sessionState.pitch_context).some(Boolean) &&
+              !!session.sessionState?.deck_analysis_done
+            }
             onTrigger={async () => {
-              await api.triggerMarketValidation(sessionId);
-              session.startPolling();
+              try {
+                setMarketTriggerError(null);
+                await api.triggerMarketValidation(sessionId);
+                session.startPolling();
+              } catch (e) {
+                setMarketTriggerError(e instanceof Error ? e.message : "Failed to start market research");
+              }
             }}
             onRerun={async () => {
-              await api.triggerMarketValidation(sessionId);
-              session.startPolling();
+              try {
+                setMarketTriggerError(null);
+                await api.triggerMarketValidation(sessionId);
+                session.startPolling();
+              } catch (e) {
+                setMarketTriggerError(e instanceof Error ? e.message : "Failed to restart market research");
+              }
             }}
             onContinue={() => session.setActivePhase(4)}
             nextPhaseLabel="Start VC Deliberation"
@@ -213,15 +231,29 @@ export default function SessionWorkspace() {
           <DeliberationComponent
             rounds={session.sessionState?.debate_rounds ?? []}
             status={session.sessionState?.deliberation_status?.status ?? "idle"}
-            statusError={session.sessionState?.deliberation_status?.error}
-            canTrigger={!!session.sessionState?.pitch_context}
+            statusError={session.sessionState?.deliberation_status?.error ?? deliberationTriggerError}
+            canTrigger={
+              !!session.sessionState?.pitch_context &&
+              Object.values(session.sessionState.pitch_context).some(Boolean) &&
+              !!session.sessionState?.deck_analysis_done
+            }
             onTrigger={async () => {
-              await api.triggerDeliberation(sessionId);
-              session.startPolling();
+              try {
+                setDeliberationTriggerError(null);
+                await api.triggerDeliberation(sessionId);
+                session.startPolling();
+              } catch (e) {
+                setDeliberationTriggerError(e instanceof Error ? e.message : "Failed to start deliberation");
+              }
             }}
             onRerun={async () => {
-              await api.triggerDeliberation(sessionId);
-              session.startPolling();
+              try {
+                setDeliberationTriggerError(null);
+                await api.triggerDeliberation(sessionId);
+                session.startPolling();
+              } catch (e) {
+                setDeliberationTriggerError(e instanceof Error ? e.message : "Failed to restart deliberation");
+              }
             }}
             onContinue={() => session.setActivePhase(5)}
             nextPhaseLabel="View Final Verdict"

@@ -270,10 +270,7 @@ class SqliteSessionStore:
                     json_extract(state, '$.market_intel_status.status') AS market_intel_status,
                     json_extract(state, '$.deliberation_status.status') AS deliberation_status,
                     json_extract(state, '$.live_interview_active')      AS live_interview_active,
-                    (SELECT COUNT(*) FROM json_each(json_extract(state, '$.live_transcript'))) AS transcript_turns,
-                    (SELECT json_extract(value, '$.image')
-                       FROM json_each(json_extract(state, '$.slide_images'))
-                      LIMIT 1)                                          AS first_slide_thumb
+                    (SELECT COUNT(*) FROM json_each(json_extract(state, '$.live_transcript'))) AS transcript_turns
                 FROM sessions
                 WHERE app_name=? AND user_id=?
                 ORDER BY updated_at DESC
@@ -297,7 +294,6 @@ class SqliteSessionStore:
                 "deliberation_status": r[10] or "idle",
                 "live_interview_active": bool(r[11]),
                 "transcript_turns": r[12] or 0,
-                # first_slide_thumb intentionally omitted — too large for list view
             }
             for r in rows
         ]
