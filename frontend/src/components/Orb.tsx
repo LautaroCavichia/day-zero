@@ -7,6 +7,13 @@ interface OrbProps {
     rotateOnHover?: boolean;
     forceHoverState?: boolean;
     backgroundColor?: string;
+    /**
+     * Audio-driven activation level (0.0–1.0).
+     * When provided, overrides mouse hover detection and drives
+     * the orb's distortion/warp effect in sync with voice audio.
+     * Use `useAudioAnalyser` to derive this value from a Web Audio node.
+     */
+    audioLevel?: number;
 }
 
 export default function Orb({
@@ -14,9 +21,13 @@ export default function Orb({
     hoverIntensity = 0.2,
     rotateOnHover = true,
     forceHoverState = false,
-    backgroundColor = '#000000'
+    backgroundColor = '#000000',
+    audioLevel,
 }: OrbProps) {
     const ctnDom = useRef<HTMLDivElement>(null);
+    // Mutable ref for audioLevel — updated via a second effect so we don't
+    // re-create the full WebGL renderer on every audio frame.
+    const audioLevelRef = useRef<number>(audioLevel ?? -1);
 
     const vert = /* glsl */ `
     precision highp float;
@@ -191,6 +202,11 @@ export default function Orb({
     }
   `;
 
+    // Sync audioLevel prop → ref without re-running the WebGL effect
+    useEffect(() => {
+        audioLevelRef.current = audioLevel ?? -1;
+    }, [audioLevel]);
+
     useEffect(() => {
         const container = ctnDom.current;
         if (!container) return;
@@ -272,11 +288,26 @@ export default function Orb({
             program.uniforms.hue.value = hue;
             program.uniforms.hoverIntensity.value = hoverIntensity;
 
-            const effectiveHover = forceHoverState ? 1 : targetHover;
-            program.uniforms.hover.value += (effectiveHover - program.uniforms.hover.value) * 0.1;
+            // Read latest audioLevel from ref (updated by secondary effect, no closure issue)
+            const livAudioLevel = audioLevelRef.current;
 
-            if (rotateOnHover && effectiveHover > 0.5) {
-                currentRot += dt * rotationSpeed;
+            // audioLevel (0–1) takes priority over mouse hover when set (>= 0)
+            const effectiveHover =
+                livAudioLevel >= 0
+                    ? livAudioLevel
+                    : forceHoverState
+                    ? 1
+                    : targetHover;
+
+            // Lerp speed: faster attack when audio is driving (voice starts), slower for mouse
+            const lerpSpeed = livAudioLevel >= 0 ? 0.18 : 0.1;
+            program.uniforms.hover.value +=
+                (effectiveHover - program.uniforms.hover.value) * lerpSpeed;
+
+            if (rotateOnHover && effectiveHover > 0.3) {
+                // Rotation speed scales with audio intensity when voice-driven
+                const speedMult = livAudioLevel >= 0 ? (0.5 + livAudioLevel * 1.5) : 1;
+                currentRot += dt * rotationSpeed * speedMult;
             }
             program.uniforms.rot.value = currentRot;
             program.uniforms.backgroundColor.value = hexToVec3(backgroundColor);
