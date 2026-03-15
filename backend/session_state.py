@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 def make_empty_state() -> dict[str, Any]:
     """Return a fresh, fully-typed session.state dict."""
     return {
+        # ── Session metadata ─────────────────────────────────────────────
+        "session_name": "",  # User-provided name for the session
         # ── Input context ────────────────────────────────────────────────
         "pitch_context": {
             "company_name": "",
@@ -47,6 +49,7 @@ def make_empty_state() -> dict[str, Any]:
         },
         # ── Deck analysis ────────────────────────────────────────────────
         "deck_critique": None,
+        "slide_count": 0,  # int — number of slides (images live on disk via slide_store)
         # ── Market intelligence ──────────────────────────────────────────
         "market_intel": None,
         # ── Deliberation ─────────────────────────────────────────────────
@@ -56,6 +59,7 @@ def make_empty_state() -> dict[str, Any]:
         # ── Internal flags ───────────────────────────────────────────────
         "live_interview_active": False,
         "deck_analysis_done": False,
+        "pitch_submitted_at": None,  # Unix timestamp, set after text pitch submit
         # Background-task statuses: { "status": "idle|running|completed|failed", "error": None }
         "market_intel_status": {"status": "idle", "error": None},
         "deliberation_status": {"status": "idle", "error": None},
@@ -143,6 +147,7 @@ class _MemoryBackend:
                     "session_id": sid,
                     "created_at": now,
                     "updated_at": now,
+                    "session_name": state.get("session_name", ""),
                     "company_name": pc.get("company_name", ""),
                     "one_liner": pc.get("one_liner", ""),
                     "stage": pc.get("stage", ""),

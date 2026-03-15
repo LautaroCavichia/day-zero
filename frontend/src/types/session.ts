@@ -38,6 +38,7 @@ export interface DeliveryScores {
 export interface SlideNote {
   index: number;
   title: string;
+  content_text: string; // All visible text on the slide (verbatim from Gemini)
   critique: string;
   score: number; // 0–10
 }
@@ -167,9 +168,18 @@ export interface TaskStatus {
   error: string | null;
 }
 
+// ─── Slide Metadata ─────────────────────────────────────────────────────────
+
+export interface SlideMetadata {
+  index: number; // 1-based
+  title: string;
+  extracted_text: string; // All visible text on the slide
+}
+
 // ─── Full Session State ───────────────────────────────────────────────────────
 
 export interface SessionState {
+  session_name: string;
   pitch_context: PitchContext | null;
   live_transcript: TranscriptTurn[];
   delivery_scores: DeliveryScores | null;
@@ -179,7 +189,8 @@ export interface SessionState {
   final_verdict: FinalVerdict | null;
   live_interview_active: boolean;
   deck_analysis_done: boolean;
-  slide_images: string[]; // base64 PNG strings
+  slide_count: number; // number of slides (images served via /api/session/{id}/slides/{index})
+  pitch_submitted_at: number | null; // Unix timestamp
   market_intel_status: TaskStatus;
   deliberation_status: TaskStatus;
 }
@@ -195,14 +206,11 @@ export interface UploadDeckResponse {
   deck_critique: DeckCritique;
 }
 
-export interface SlideResponse {
-  index: number;
-  image: string; // base64 PNG
-  total: number;
-}
+// SlideResponse removed — slides are now served as PNG bytes via direct URL:
+// GET /api/session/{id}/slides/{index} → image/png
+// Use getSlideUrl() from api.ts to build the URL.
 
 export interface SlidesResponse {
-  slides: string[]; // base64 PNG array
   count: number;
 }
 
@@ -358,6 +366,7 @@ export interface SessionSummary {
   session_id: string;
   created_at: number;         // Unix timestamp
   updated_at: number;         // Unix timestamp
+  session_name: string;       // User-provided name (empty string if not set)
   company_name: string;
   one_liner: string;
   stage: string;

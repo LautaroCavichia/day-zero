@@ -1,25 +1,52 @@
 // ─── SlideViewer ──────────────────────────────────────────────────────────────
-// Displays pitch deck slides (base64 PNG from the backend).
+// Displays pitch deck slides served as PNG images directly from the backend.
+// Uses URL-based <img> rendering (no base64) with prefetch of adjacent slides.
 // Handles navigation and emits slide change events for WebSocket sync.
 
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Layers } from "lucide-react";
+import { getSlideUrl } from "@/services/api";
 
 interface SlideViewerProps {
-  slides: string[]; // base64 PNG strings
+  sessionId: string;
+  slideCount: number;
   currentIndex: number;
   onSlideChange: (index: number) => void;
   isLoading?: boolean;
 }
 
 export default function SlideViewer({
-  slides,
+  sessionId,
+  slideCount,
   currentIndex,
   onSlideChange,
   isLoading = false,
 }: SlideViewerProps) {
-  const total = slides.length;
+  const total = slideCount;
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < total - 1;
+
+  // Per-slide load state for the currently displayed image
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  // Reset load state whenever the displayed slide changes
+  useEffect(() => {
+    setImgLoaded(false);
+    setImgError(false);
+  }, [currentIndex, sessionId]);
+
+  // Prefetch adjacent slides so navigation feels instant
+  useEffect(() => {
+    if (total === 0) return;
+    const prefetchIndexes = [currentIndex - 1, currentIndex + 1].filter(
+      (i) => i >= 0 && i < total
+    );
+    prefetchIndexes.forEach((i) => {
+      const img = new Image();
+      img.src = getSlideUrl(sessionId, i);
+    });
+  }, [currentIndex, sessionId, total]);
 
   const goTo = (index: number) => {
     if (index < 0 || index >= total) return;
@@ -51,19 +78,34 @@ export default function SlideViewer({
     );
   }
 
-  const currentSlide = slides[currentIndex];
-
   return (
     <div className="flex flex-col gap-3">
       {/* Slide image */}
       <div className="relative rounded-xl overflow-hidden border border-[#1e1e1e] bg-[#0c0c0c] aspect-[16/9]">
-        <img
-          key={currentIndex}
-          src={`data:image/png;base64,${currentSlide}`}
-          alt={`Slide ${currentIndex + 1} of ${total}`}
-          className="w-full h-full object-contain transition-opacity duration-200"
-          draggable={false}
-        />
+        {/* Loading spinner while image fetches */}
+        {!imgLoaded && !imgError && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-full border-2 border-[#1e1e1e] border-t-[#C8FF00] animate-spin" />
+          </div>
+        )}
+
+        {imgError ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-xs text-[#5a5a5a]">Failed to load slide</p>
+          </div>
+        ) : (
+          <img
+            key={`${sessionId}-${currentIndex}`}
+            src={getSlideUrl(sessionId, currentIndex)}
+            alt={`Slide ${currentIndex + 1} of ${total}`}
+            className={`w-full h-full object-contain transition-opacity duration-200 ${
+              imgLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            draggable={false}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+        )}
 
         {/* Slide number badge */}
         <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-[#050505]/80 backdrop-blur-sm border border-[#1e1e1e]">
@@ -84,10 +126,10 @@ export default function SlideViewer({
           Prev
         </button>
 
-        {/* Thumbnail strip — visible for small decks */}
-        {total <= 12 && (
+        {/* Thumbnail strip — visible for decks up to 20 slides */}
+        {total <= 20 && (
           <div className="flex items-center gap-1 overflow-x-auto max-w-[200px] py-1 px-1">
-            {slides.map((_, i) => (
+            {Array.from({ length: total }, (_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i)}

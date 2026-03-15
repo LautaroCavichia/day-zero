@@ -50,7 +50,7 @@ function derivePhaseStatuses(
       case 1:
         return hasTranscript ? "done" : "available";
       case 2:
-        if (!hasDeck) return "locked";
+        // Phase 2 is always available — user can upload a deck at any time.
         return state.deck_analysis_done ? "done" : "available";
       case 3:
         if (!hasPitch && !hasTranscript) return "locked";

@@ -174,9 +174,14 @@ export default function SessionWorkspace() {
             initialLifecycle={interviewLifecycle}
             savedTranscript={session.sessionState?.live_transcript ?? []}
             savedScores={session.sessionState?.delivery_scores ?? null}
+            deckCritique={session.sessionState?.deck_critique ?? null}
             onInterviewEnded={handleInterviewEnded}
             onContinue={handleInterviewContinue}
             onActiveStateChange={setInterviewIsActive}
+            onUploadDeck={async (file: File) => {
+              await api.uploadDeck(sessionId!, file);
+              session.refresh();
+            }}
           />
         );
       case 2:
@@ -284,10 +289,10 @@ export default function SessionWorkspace() {
     );
   }
 
-  const companyName =
-    session.sessionState?.pitch_context?.company_name?.trim() || undefined;
   const sessionLabel =
-    companyName ?? (sessionId ? `Session ${sessionId.slice(0, 8)}` : undefined);
+    session.sessionState?.session_name?.trim() ||
+    session.sessionState?.pitch_context?.company_name?.trim() ||
+    (sessionId ? `Session ${sessionId.slice(0, 8)}` : undefined);
 
   return (
     <div className="dark">

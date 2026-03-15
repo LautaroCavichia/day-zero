@@ -21,6 +21,9 @@ import {
   MessageSquare,
   Clock,
   TrendingUp,
+  Upload,
+  RefreshCw,
+  FileStack,
 } from "lucide-react";
 import { useLiveInterview } from "@/hooks/useLiveInterview";
 import { useAudioPipeline } from "@/hooks/useAudioPipeline";
@@ -32,7 +35,7 @@ import ChatTranscript from "@/components/session/chat-transcript";
 import TranscriptDrawer from "@/components/session/transcript-drawer";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import TrainingReviewPanel from "@/components/session/training-review";
-import type { DeliveryScores, TranscriptTurn } from "@/types/session";
+import type { DeliveryScores, DeckCritique, TranscriptTurn } from "@/types/session";
 import Orb from "@/components/Orb";
 
 // ─── Coaching tips state & polling ───────────────────────────────────────────
@@ -264,6 +267,89 @@ function PreInterviewScreen({ slideCount, hasDeck, onBegin, isConnecting }: PreI
   );
 }
 
+// ─── Deck upload nudge (shown in post-interview when no deck uploaded) ────────
+
+function DeckUploadNudge({
+  onContinue,
+  onUploadDeck,
+}: {
+  onContinue: () => void;
+  onUploadDeck?: (file: File) => Promise<void>;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File) => {
+    if (!onUploadDeck) return;
+    setUploading(true);
+    try {
+      await onUploadDeck(file);
+      // Navigate to deck analysis after upload
+      onContinue();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    handleFile(file);
+  };
+
+  return (
+    <div className="rounded-2xl border border-[#282828] bg-[#131313] p-4 flex flex-col gap-3 anim-hidden anim-fade-up"
+      style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+    >
+      <div className="flex items-center gap-1.5">
+        <FileStack className="size-3 text-[#C8FF00]/60" strokeWidth={1.5} />
+        <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Deck Analysis</p>
+      </div>
+      <p className="text-xs text-[#a0a0a0] leading-relaxed">
+        No deck uploaded yet. Add your pitch deck to get a slide-by-slide critique.
+      </p>
+      <div className="flex flex-col gap-2">
+        {onUploadDeck && (
+          <>
+            <button
+              onClick={() => !uploading && fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] transition-colors duration-150 disabled:opacity-60"
+            >
+              {uploading ? (
+                <>
+                  <RefreshCw className="size-3 animate-spin" strokeWidth={2} />
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <Upload className="size-3" strokeWidth={2} />
+                  Upload Deck
+                </>
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.pptx"
+              className="hidden"
+              onChange={handleChange}
+            />
+          </>
+        )}
+        <button
+          onClick={onContinue}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-[#5a5a5a] bg-[#161616] border border-[#2a2a2a] hover:text-[#a0a0a0] hover:border-[#3a3a3a] transition-all duration-150"
+        >
+          Skip — go to Deck Analysis
+          <ArrowRight className="size-3" strokeWidth={2} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Post-interview screen ────────────────────────────────────────────────────
 
 interface PostInterviewProps {
@@ -271,8 +357,10 @@ interface PostInterviewProps {
   scores: DeliveryScores | null;
   transcript: TranscriptTurn[];
   duration: number; // seconds
+  hasDeck: boolean;
   onContinue: () => void;
   onRedo: () => void;
+  onUploadDeck?: (file: File) => Promise<void>;
 }
 
 /** Derive simple stats from transcript turns */
@@ -284,7 +372,7 @@ function transcriptStats(transcript: TranscriptTurn[]) {
   return { samTurns: samTurns.length, founderTurns: founderTurns.length, avgWordsPerTurn };
 }
 
-function PostInterviewScreen({ sessionId, scores, transcript, duration, onContinue, onRedo }: PostInterviewProps) {
+function PostInterviewScreen({ sessionId, scores, transcript, duration, hasDeck, onContinue, onRedo, onUploadDeck }: PostInterviewProps) {
   const [showRedoConfirm, setShowRedoConfirm] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
@@ -478,21 +566,25 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, onContin
           )}
 
           {/* Next step nudge */}
-          <div className="rounded-2xl border border-[#1A3D28]/50 bg-[#0A1F12]/30 p-4 flex flex-col gap-2.5 anim-hidden anim-fade-up"
-            style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
-          >
-            <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Next Step</p>
-            <p className="text-xs text-[#a0a0a0] leading-relaxed">
-              Head to Deck Analysis to see slide-by-slide feedback and narrative scoring.
-            </p>
-            <button
-              onClick={onContinue}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] transition-colors duration-150"
+          {hasDeck ? (
+            <div className="rounded-2xl border border-[#1A3D28]/50 bg-[#0A1F12]/30 p-4 flex flex-col gap-2.5 anim-hidden anim-fade-up"
+              style={{ boxShadow: "0 1px 0 0 rgba(200,255,0,0.04) inset, 0 4px 24px rgba(0,0,0,0.45)" }}
             >
-              View Deck Analysis
-              <ArrowRight className="size-3" strokeWidth={2} />
-            </button>
-          </div>
+              <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Next Step</p>
+              <p className="text-xs text-[#a0a0a0] leading-relaxed">
+                Head to Deck Analysis to see slide-by-slide feedback and narrative scoring.
+              </p>
+              <button
+                onClick={onContinue}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] transition-colors duration-150"
+              >
+                View Deck Analysis
+                <ArrowRight className="size-3" strokeWidth={2} />
+              </button>
+            </div>
+          ) : (
+            <DeckUploadNudge onContinue={onContinue} onUploadDeck={onUploadDeck} />
+          )}
 
         </div>
 
@@ -553,12 +645,18 @@ interface LiveInterviewProps {
   savedTranscript?: TranscriptTurn[];
   /** Saved delivery scores (for post view) */
   savedScores?: DeliveryScores | null;
+  /** Deck critique with per-slide metadata — used to send real slide titles on navigation */
+  deckCritique?: DeckCritique | null;
+  /** Number of slides available (from session.slide_count) */
+  slideCount?: number;
   /** Called when the interview ends so the parent can refresh session state */
   onInterviewEnded?: () => void;
   /** Called when the user wants to advance to Phase 2 from the post-interview view */
   onContinue?: () => void;
   /** Callback so parent can know whether a call is currently active (for nav guards) */
   onActiveStateChange?: (isActive: boolean) => void;
+  /** Called with a File when user wants to upload their deck from the post-interview screen */
+  onUploadDeck?: (file: File) => Promise<void>;
 }
 
 export default function LiveInterview({
@@ -566,16 +664,17 @@ export default function LiveInterview({
   initialLifecycle = "pre",
   savedTranscript = [],
   savedScores = null,
+  deckCritique = null,
+  slideCount = 0,
   onInterviewEnded,
   onContinue,
   onActiveStateChange,
+  onUploadDeck,
 }: LiveInterviewProps) {
   // ─── Lifecycle state ────────────────────────────────────────────────────────
   const [lifecycle, setLifecycle] = useState<InterviewLifecycle>(initialLifecycle);
 
   // ─── Slide state ────────────────────────────────────────────────────────────
-  const [slides, setSlides] = useState<string[]>([]);
-  const [slidesLoading, setSlidesLoading] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // ─── Mic toggle state ───────────────────────────────────────────────────────
@@ -629,24 +728,6 @@ export default function LiveInterview({
     return () => window.removeEventListener("beforeunload", handler);
   }, [lifecycle, interview.status]);
 
-  // ─── Load slides on mount ───────────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchSlides() {
-      setSlidesLoading(true);
-      try {
-        const resp = await api.getSlides(sessionId);
-        if (!cancelled) setSlides(resp.slides ?? []);
-      } catch {
-        // Slides are optional — interview can proceed without them
-      } finally {
-        if (!cancelled) setSlidesLoading(false);
-      }
-    }
-    fetchSlides();
-    return () => { cancelled = true; };
-  }, [sessionId]);
-
   // ─── Wire audio pipeline once WS is open ────────────────────────────────────
   useEffect(() => {
     interview.onAudioChunk((chunk) => {
@@ -696,9 +777,11 @@ export default function LiveInterview({
   const handleSlideChange = useCallback(
     (index: number) => {
       setCurrentSlide(index);
-      interview.sendSlideChange(index, `Slide ${index + 1}`, slides.length);
+      // Use real slide title from deck_critique if available, otherwise fall back to number
+      const slideTitle = deckCritique?.slides?.[index]?.title || `Slide ${index + 1}`;
+      interview.sendSlideChange(index, slideTitle, slideCount);
     },
-    [interview, slides.length]
+    [interview, slideCount, deckCritique]
   );
 
   // ─── Mic toggle ─────────────────────────────────────────────────────────────
@@ -732,8 +815,8 @@ export default function LiveInterview({
   if (lifecycle === "pre") {
     return (
       <PreInterviewScreen
-        slideCount={slides.length}
-        hasDeck={slides.length > 0}
+        slideCount={slideCount}
+        hasDeck={slideCount > 0}
         onBegin={handleBegin}
         isConnecting={interview.status === "connecting"}
       />
@@ -755,8 +838,10 @@ export default function LiveInterview({
         scores={displayScores}
         transcript={displayTranscript}
         duration={displayDuration}
+        hasDeck={deckCritique != null || slideCount > 0}
         onContinue={() => onContinue?.()}
         onRedo={handleRedo}
+        onUploadDeck={onUploadDeck}
       />
     );
   }
@@ -772,17 +857,17 @@ export default function LiveInterview({
             <h2 className="text-sm font-medium text-[#a0a0a0] uppercase tracking-widest">
               Deck
             </h2>
-            {slides.length > 0 && (
+            {slideCount > 0 && (
               <span className="text-xs font-mono text-[#5a5a5a]">
-                {slides.length} slides
+                {slideCount} slides
               </span>
             )}
           </div>
           <SlideViewer
-            slides={slides}
+            sessionId={sessionId}
+            slideCount={slideCount}
             currentIndex={currentSlide}
             onSlideChange={handleSlideChange}
-            isLoading={slidesLoading}
           />
         </div>
 

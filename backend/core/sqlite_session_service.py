@@ -261,6 +261,7 @@ class SqliteSessionStore:
                     session_id,
                     created_at,
                     updated_at,
+                    json_extract(state, '$.session_name')               AS session_name,
                     json_extract(state, '$.pitch_context.company_name') AS company_name,
                     json_extract(state, '$.pitch_context.one_liner')    AS one_liner,
                     json_extract(state, '$.pitch_context.stage')        AS stage,
@@ -284,16 +285,17 @@ class SqliteSessionStore:
                 "session_id": r[0],
                 "created_at": r[1],
                 "updated_at": r[2],
-                "company_name": r[3] or "",
-                "one_liner": r[4] or "",
-                "stage": r[5] or "",
-                "verdict_decision": r[6],  # "PASS" | "SOFT PASS" | "NO" | None
-                "weighted_score": r[7],  # 0–100 float | None
-                "deck_analysis_done": bool(r[8]),
-                "market_intel_status": r[9] or "idle",
-                "deliberation_status": r[10] or "idle",
-                "live_interview_active": bool(r[11]),
-                "transcript_turns": r[12] or 0,
+                "session_name": r[3] or "",
+                "company_name": r[4] or "",
+                "one_liner": r[5] or "",
+                "stage": r[6] or "",
+                "verdict_decision": r[7],  # "PASS" | "SOFT PASS" | "NO" | None
+                "weighted_score": r[8],  # 0–100 float | None
+                "deck_analysis_done": bool(r[9]),
+                "market_intel_status": r[10] or "idle",
+                "deliberation_status": r[11] or "idle",
+                "live_interview_active": bool(r[12]),
+                "transcript_turns": r[13] or 0,
             }
             for r in rows
         ]

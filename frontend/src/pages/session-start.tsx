@@ -1,14 +1,27 @@
 // ─── SessionStart ─────────────────────────────────────────────────────────────
 // Route: /app/new
-// Creates a new session, then guides the user through the onboarding steps
-// (upload deck → preview → start interview). On "Start Interview" navigates to
-// /app/session/:id which hosts the live workspace.
+// Creates a new session then guides the user through the 5-step onboarding:
+//   1. Your Company  — session name, one-liner, stage
+//   2. Tell us more  — problem, solution
+//   3. Upload deck   — DeckUploader + skip link
+//   4. Preview slides — SlideViewer (only if deck uploaded)
+//   5. Ready to pitch — summary + Start Interview CTA
+// On "Start Interview" navigates to /app/session/:id.
 
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import GrainOverlay from "@/components/shared/grain-overlay";
+import Logo from "@/components/shared/logo";
 import OnboardingSteps from "@/components/session/onboarding-steps";
 import { api } from "@/services/api";
+
+export interface OnboardingData {
+  sessionName: string;
+  oneLiner: string;
+  stage: string;
+  problem: string;
+  solution: string;
+}
 
 export default function SessionStart() {
   const navigate = useNavigate();
@@ -27,7 +40,7 @@ export default function SessionStart() {
   const [slides, setSlides] = useState<string[]>([]);
   const [slidesLoading, setSlidesLoading] = useState(false);
 
-  // ─── Ensure a session exists, create lazily on first upload ──────────────
+  // ─── Ensure a session exists, create lazily on step 1 completion ──────────
   const ensureSession = useCallback(async (): Promise<string> => {
     if (sessionId) return sessionId;
     setCreatingSession(true);
@@ -44,6 +57,28 @@ export default function SessionStart() {
       setCreatingSession(false);
     }
   }, [sessionId]);
+
+  // ─── Save company/pitch info after step 1+2 ───────────────────────────────
+  const handleSaveOnboardingData = useCallback(
+    async (data: OnboardingData) => {
+      const sid = await ensureSession();
+      try {
+        await api.updateSession(sid, {
+          session_name: data.sessionName,
+          pitch_context: {
+            company_name: data.sessionName,
+            one_liner: data.oneLiner,
+            stage: data.stage,
+            problem: data.problem,
+            solution: data.solution,
+          },
+        });
+      } catch {
+        // Non-fatal — continue anyway; data can be enriched by the interview
+      }
+    },
+    [ensureSession]
+  );
 
   // ─── Upload handler ───────────────────────────────────────────────────────
   const handleUpload = useCallback(
@@ -65,7 +100,6 @@ export default function SessionStart() {
         }, 300);
 
         await api.uploadDeck(sid, file);
-
         clearInterval(stage1);
 
         // Stage 2 — Converting slides (30 → 65%)
@@ -78,10 +112,8 @@ export default function SessionStart() {
           });
         }, 400);
 
-        // Fetch converted slides
         setSlidesLoading(true);
         const resp = await api.getSlides(sid);
-
         clearInterval(stage2);
 
         // Stage 3 — Analyzing content (65 → 95%)
@@ -96,7 +128,6 @@ export default function SessionStart() {
 
         setSlides(resp.slides ?? []);
         setUploadedFileName(file.name);
-
         clearInterval(stage3);
         setUploadProgress(100);
       } catch (err) {
@@ -133,30 +164,26 @@ export default function SessionStart() {
     <div className="dark min-h-screen bg-background text-foreground">
       <GrainOverlay />
 
+      {/* Atmospheric glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{
+          background:
+            "linear-gradient(to top right, rgba(200,255,0,0.04) 0%, transparent 50%)",
+        }}
+      />
+
       {/* Fixed minimal nav */}
-      <header className="fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-50 border-b border-[#1e1e1e] bg-background/80 backdrop-blur-md">
-        <a href="/app" className="flex items-center gap-2 group">
-          <span className="text-sm font-semibold text-[#f0f0f0] font-heading tracking-tight group-hover:text-[#C8FF00] transition-colors">
-            DayZero
-          </span>
+      <header className="fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-50 border-b border-[#1e1e1e] bg-[#050505]/90 backdrop-blur-xl">
+        <a href="/app">
+          <Logo className="text-sm" />
         </a>
         <span className="text-xs font-mono text-[#3a3a3a]">New session</span>
       </header>
 
       {/* Centered content */}
-      <main className="flex flex-col items-center justify-center min-h-screen pt-14 px-6 pb-16">
-        {/* Page heading */}
-        <div className="w-full max-w-2xl mb-10 text-center">
-          <p className="text-[10px] font-mono tracking-[0.12em] text-[#C8FF00]/40 uppercase mb-3">
-            New session
-          </p>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#f0f0f0] font-heading tracking-tight leading-tight mb-3">
-            Prepare your pitch
-          </h1>
-          <p className="text-sm text-[#5a5a5a] leading-relaxed">
-            Upload your deck and get grilled by Sam — your AI seed-round investor.
-          </p>
-        </div>
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-screen pt-14 px-6 pb-16">
 
         {/* Errors */}
         {sessionError && (
@@ -195,6 +222,7 @@ export default function SessionStart() {
         ) : (
           <OnboardingSteps
             sessionId={sessionId ?? ""}
+            onSaveOnboardingData={handleSaveOnboardingData}
             onUpload={handleUpload}
             isUploading={isUploading}
             uploadProgress={uploadProgress}

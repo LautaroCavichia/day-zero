@@ -133,16 +133,20 @@ def _build_deck_system_context(slide_metadata: list) -> str:
 
     Injects all slide text so SAM can detect contradictions between what the
     founder says during the interview and what is written in their deck.
-    
+
     This is CRITICAL: SAM must interrupt IMMEDIATELY at ANY discrepancy.
+
+    Accepts slides in either format:
+      - deck_critique.slides dicts: {index, title, content_text, ...}
+      - legacy slide_metadata dicts: {index, title, extracted_text}
     """
     if not slide_metadata:
         return ""
-    
+
     lines = [
-        "\n\n" + "="*80,
+        "\n\n" + "=" * 80,
         "🔴 PITCH DECK VERIFICATION PROTOCOL — NON-NEGOTIABLE",
-        "="*80,
+        "=" * 80,
         "",
         "The founder has uploaded their pitch deck. You MUST verify EVERY factual claim",
         "they make against the deck content in REAL-TIME.",
@@ -150,20 +154,21 @@ def _build_deck_system_context(slide_metadata: list) -> str:
         "BELOW IS THE COMPLETE DECK CONTENT:",
         "",
     ]
-    
+
     for slide in slide_metadata:
         idx = slide.get("index", "?")
         title = slide.get("title", f"Slide {idx}")
-        text = slide.get("extracted_text", "").strip()
+        # Support both field names: content_text (from deck_critique) and extracted_text (legacy)
+        text = (slide.get("content_text") or slide.get("extracted_text") or "").strip()
         lines.append(f"[SLIDE {idx}: {title}]")
         if text:
             lines.append(text)
         lines.append("")
-    
+
     lines += [
-        "="*80,
+        "=" * 80,
         "⚠️  YOUR JOB — MANDATORY DISCREPANCY DETECTION:",
-        "="*80,
+        "=" * 80,
         "",
         "1. MEMORY: Above are ALL the slides. Memorize key facts: company name, numbers, claims.",
         "",
@@ -178,7 +183,7 @@ def _build_deck_system_context(slide_metadata: list) -> str:
         '   - Founder: "We have 100 customers"  |  Deck says: "10 customers"  →  INTERRUPT IMMEDIATELY',
         "",
         "4. HOW TO INTERRUPT:",
-        '   Use a SHARP, direct phrase like:',
+        "   Use a SHARP, direct phrase like:",
         '   "Hold on—you just said [X], but your deck says [Y]. What\'s going on?"',
         '   Or: "Wait, I see [Y] in your deck but you\'re telling me [X]. Clarify that."',
         "",
@@ -187,9 +192,9 @@ def _build_deck_system_context(slide_metadata: list) -> str:
         "   - Treat discrepancies as red flags that need immediate resolution.",
         "   - Do NOT let ANY contradiction slide. ZERO tolerance.",
         "",
-        "="*80,
+        "=" * 80,
         "START INTERVIEW NOW. STAY ALERT FOR DISCREPANCIES AT ALL TIMES.",
-        "="*80,
+        "=" * 80,
     ]
     return "\n".join(lines)
 
@@ -219,7 +224,11 @@ async def run_live_interview(
 
     state = await _store.get_state(session_id)
     pitch_ctx = state.get("pitch_context", {}) if state else {}
-    slide_metadata = state.get("slide_metadata", []) if state else []
+    # Derive slide metadata from deck_critique (single source of truth)
+    deck_critique = state.get("deck_critique") if state else None
+    slide_metadata = []
+    if deck_critique and isinstance(deck_critique, dict):
+        slide_metadata = deck_critique.get("slides", [])
     pitch_summary = format_pitch_context(pitch_ctx)
 
     system_instruction = SAM_SYSTEM_PROMPT
@@ -239,6 +248,7 @@ async def run_live_interview(
     try:
         # Use Google provider DIRECTLY for live audio, regardless of LLM_PROVIDER setting
         from backend.providers.google_provider import GoogleProvider
+
         google_provider = GoogleProvider(api_key=settings.google_api_key)
         await google_provider.stream_live_audio(
             websocket=websocket,

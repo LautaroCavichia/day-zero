@@ -6,7 +6,6 @@ import type {
   SessionState,
   UploadDeckResponse,
   SlidesResponse,
-  SlideResponse,
   CoachingResponse,
   TrainingReview,
   VerdictResponse,
@@ -66,6 +65,16 @@ export const api = {
   deleteSession: (sessionId: string): Promise<void> =>
     request<void>(`/api/session/${sessionId}`, { method: "DELETE" }),
 
+  // Update session metadata (session_name and/or pitch_context fields)
+  updateSession: (
+    sessionId: string,
+    updates: { session_name?: string; pitch_context?: Record<string, string> }
+  ): Promise<{ status: string; session_id: string; session_name: string }> =>
+    request(`/api/session/${sessionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    }),
+
   // ─── Analysis ───────────────────────────────────────────────────────────────
 
   // Upload PDF or PPTX pitch deck
@@ -87,13 +96,9 @@ export const api = {
       body: JSON.stringify({ pitch_text: pitchText }),
     }),
 
-  // Get all slide images for a session
+  // Get slide count for a session (images served via getSlideUrl)
   getSlides: (sessionId: string): Promise<SlidesResponse> =>
     request<SlidesResponse>(`/api/session/${sessionId}/slides`),
-
-  // Get a single slide by index
-  getSlide: (sessionId: string, index: number): Promise<SlideResponse> =>
-    request<SlideResponse>(`/api/session/${sessionId}/slides/${index}`),
 
   // ─── Market + Deliberation ──────────────────────────────────────────────────
 
@@ -150,4 +155,13 @@ export function getDeliberationWsUrl(sessionId: string): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.host;
   return `${protocol}//${host}/ws/deliberation/${sessionId}`;
+}
+
+/**
+ * Returns the direct URL for a slide PNG image (0-based index).
+ * The browser fetches this URL directly — no base64, no JSON wrapper.
+ * Browser HTTP cache handles deduplication.
+ */
+export function getSlideUrl(sessionId: string, index: number): string {
+  return `/api/session/${sessionId}/slides/${index}`;
 }

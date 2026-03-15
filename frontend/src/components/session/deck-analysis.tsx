@@ -446,18 +446,94 @@ function DeckAnalysisLoading() {
   );
 }
 
-function DeckAnalysisEmpty() {
+function DeckAnalysisEmpty({
+  onUpload,
+}: {
+  onUpload?: (file: File) => Promise<void>;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFile = async (file: File) => {
+    if (!onUpload) return;
+    setUploading(true);
+    try {
+      await onUpload(file);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    handleFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4 text-center px-6">
+    <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-6 text-center px-6">
       <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-[#161616] border border-[#1e1e1e]">
         <FileStack className="size-5 text-[#3a3a3a]" strokeWidth={1.5} />
       </div>
+
       <div>
-        <h2 className="text-base font-semibold text-[#f0f0f0] mb-1">No deck analysis yet</h2>
+        <h2 className="text-base font-semibold text-[#f0f0f0] mb-1">No deck uploaded yet</h2>
         <p className="text-sm text-[#5a5a5a] max-w-xs">
-          Upload a pitch deck in the onboarding step to see a detailed slide-by-slide critique.
+          Upload a pitch deck to get a detailed slide-by-slide critique from our AI.
         </p>
       </div>
+
+      {onUpload && (
+        <>
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            className={`
+              w-full max-w-sm rounded-xl border-2 border-dashed px-6 py-8 cursor-pointer
+              flex flex-col items-center gap-3 transition-all duration-200
+              ${dragOver
+                ? "border-[#C8FF00]/50 bg-[#C8FF00]/5"
+                : "border-[#2a2a2a] bg-[#0a0a0a] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/[0.025]"}
+              ${uploading ? "pointer-events-none opacity-60" : ""}
+            `}
+          >
+            {uploading ? (
+              <>
+                <RefreshCw className="size-5 text-[#C8FF00]/60 animate-spin" strokeWidth={1.5} />
+                <p className="text-xs font-mono text-[#5a5a5a]">Uploading deck…</p>
+              </>
+            ) : (
+              <>
+                <Upload className="size-5 text-[#3a3a3a]" strokeWidth={1.5} />
+                <div>
+                  <p className="text-sm font-semibold text-[#a0a0a0] mb-0.5">
+                    Drop your deck here
+                  </p>
+                  <p className="text-xs text-[#3a3a3a]">PDF or PPTX · click to browse</p>
+                </div>
+              </>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.pptx"
+            className="hidden"
+            onChange={handleChange}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -501,7 +577,7 @@ export default function DeckAnalysis({
   };
 
   if (isLoading) return <DeckAnalysisLoading />;
-  if (!critique) return <DeckAnalysisEmpty />;
+  if (!critique) return <DeckAnalysisEmpty onUpload={onReupload} />;
 
   const avgScore =
     critique.slides.length > 0

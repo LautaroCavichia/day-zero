@@ -49,6 +49,7 @@ from backend.core.errors import (  # noqa: E402
 )
 from backend.core.logging_config import configure_logging  # noqa: E402
 from backend.core.middleware import RequestIdMiddleware  # noqa: E402
+from backend.core import slide_store  # noqa: E402
 from backend.core.models import (  # noqa: E402
     ErrorResponse,
     PitchTextRequest,
@@ -56,8 +57,9 @@ from backend.core.models import (  # noqa: E402
     TaskStartedResponse,
 )
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
+from fastapi.responses import FileResponse, JSONResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 # Configure structured logging before anything else logs
@@ -259,7 +261,46 @@ async def delete_session(session_id: str):
     """Delete a session."""
     await ss.default_store.require_state(session_id)  # 404 if missing
     await ss.delete_session(session_id)
+    slide_store.cleanup(session_id)
     return {"status": "deleted"}
+
+
+class SessionUpdateRequest(BaseModel):
+    session_name: str | None = None
+    pitch_context: dict | None = None
+
+
+@app.patch("/api/session/{session_id}", tags=["Session"])
+async def update_session(session_id: str, body: SessionUpdateRequest):
+    """
+    Partially update session metadata.
+
+    Accepts:
+      - ``session_name``: user-provided name for the session
+      - ``pitch_context``: partial dict deep-merged into the existing pitch_context
+
+    Returns the updated top-level session metadata fields.
+    """
+    state = await ss.default_store.require_state(session_id)
+
+    updates: dict = {}
+
+    if body.session_name is not None:
+        updates["session_name"] = body.session_name
+
+    if body.pitch_context is not None:
+        existing_ctx = dict(state.get("pitch_context") or {})
+        existing_ctx.update(body.pitch_context)
+        updates["pitch_context"] = existing_ctx
+
+    if updates:
+        await ss.default_store.update(session_id, updates)
+
+    return {
+        "status": "ok",
+        "session_id": session_id,
+        "session_name": updates.get("session_name", state.get("session_name", "")),
+    }
 
 
 @app.get("/api/session/{session_id}/verdict", tags=["Session"])
@@ -384,20 +425,20 @@ async def upload_deck(
 async def test_pipeline_resume(session_id: str):
     """
     [DEBUG/TESTING] Resume the pipeline (market + deliberation) for this session.
-    
+
     Use this to test the full pipeline without spending time on the live interview.
     If pitch_context is missing, generates example data.
-    
+
     Returns: {"status": "ok", "message": "Pipeline resumed..."}
     """
     _require_api_key()
-    
+
     state = await ss.default_store.require_state(session_id)
-    
+
     # Check if pitch_context has real content (non-empty values)
     existing_ctx = state.get("pitch_context") or {}
     has_real_content = any(v for v in existing_ctx.values() if v)
-    
+
     if not has_real_content:
         # Store example pitch using the exact field names market_validator expects
         example_pitch = {
@@ -412,19 +453,20 @@ async def test_pipeline_resume(session_id: str):
             "ask": "$800K seed: $400K model training, $200K sales, $200K engineering.",
             "stage": "Pre-seed, post-revenue",
         }
-        await ss.default_store.update(session_id, {
-            "pitch_context": example_pitch,
-            "pitch_submitted_at": time.time()
-        })
+        await ss.default_store.update(
+            session_id, {"pitch_context": example_pitch, "pitch_submitted_at": time.time()}
+        )
         logger.info("Generated example pitch_context for testing: session=%s", session_id)
     else:
-        logger.info("Using existing pitch_context (has content): session=%s company=%s",
-                    session_id, existing_ctx.get("company_name") or existing_ctx.get("title", "?"))
-    
+        logger.info(
+            "Using existing pitch_context (has content): session=%s company=%s",
+            session_id,
+            existing_ctx.get("company_name") or existing_ctx.get("title", "?"),
+        )
+
     # Trigger market analysis in background
     asyncio.create_task(_run_market_and_deliberation_bg(session_id))
-    
-    
+
     return {"status": "ok", "message": "Pipeline resumed - market analysis + deliberation running"}
 
 
@@ -432,21 +474,27 @@ async def _run_market_and_deliberation_bg(session_id: str) -> None:
     """Run market validation + deliberation in background."""
     try:
         logger.info("Starting test pipeline: session=%s", session_id)
-        
+
         # Double-check pitch_context has real content
         state = await ss.default_store.get_state(session_id)
         pitch_ctx = (state or {}).get("pitch_context") or {}
         has_content = any(v for v in pitch_ctx.values() if v)
         if not has_content:
-            logger.error("pitch_context empty/missing before market analysis: session=%s keys=%s",
-                         session_id, list(pitch_ctx.keys()))
+            logger.error(
+                "pitch_context empty/missing before market analysis: session=%s keys=%s",
+                session_id,
+                list(pitch_ctx.keys()),
+            )
             raise Exception("pitch_context is empty — no real values found")
-        
-        logger.info("pitch_context found — company=%s", pitch_ctx.get("company_name") or pitch_ctx.get("title", "?"))
-        
+
+        logger.info(
+            "pitch_context found — company=%s",
+            pitch_ctx.get("company_name") or pitch_ctx.get("title", "?"),
+        )
+
         await validate_market(session_id, store=ss.default_store)
         logger.info("Market analysis complete: session=%s", session_id)
-        
+
         await run_deliberation(session_id, store=ss.default_store)
         logger.info("Deliberation complete: session=%s", session_id)
     except Exception as e:
@@ -563,27 +611,28 @@ async def _run_deliberation_bg(session_id: str) -> None:
 @app.get("/api/session/{session_id}/slides", tags=["Analysis"])
 async def get_slides(session_id: str):
     """
-    Return all slide images (base64 PNG) for the uploaded deck.
+    Return slide count for the uploaded deck.
     Available after POST /api/upload-deck completes.
     """
     state = await ss.default_store.require_state(session_id)
-    slides = state.get("slide_images", [])
-    return {"slides": slides, "count": len(slides)}
+    count = state.get("slide_count", 0)
+    return {"count": count}
 
 
 @app.get("/api/session/{session_id}/slides/{index}", tags=["Analysis"])
 async def get_slide(session_id: str, index: int):
     """
-    Return a single slide image (base64 PNG) by 0-based index.
-    Returns 404 if index is out of range.
+    Stream a single slide image (PNG) by 0-based index directly from disk.
+    Returns 404 if index is out of range or image not yet rendered.
     """
     state = await ss.default_store.require_state(session_id)
-    slides = state.get("slide_images", [])
-    if index < 0 or index >= len(slides):
-        raise HTTPException(
-            status_code=404, detail=f"Slide {index} not found (count={len(slides)})"
-        )
-    return {"index": index, "image": slides[index], "total": len(slides)}
+    count = state.get("slide_count", 0)
+    if index < 0 or index >= count:
+        raise HTTPException(status_code=404, detail=f"Slide {index} not found (count={count})")
+    png_bytes = slide_store.get(session_id, index, "display")
+    if png_bytes is None:
+        raise HTTPException(status_code=404, detail=f"Slide {index} image not available yet")
+    return Response(content=png_bytes, media_type="image/png")
 
 
 # ── Real-time coaching ───────────────────────────────────────────────────────
