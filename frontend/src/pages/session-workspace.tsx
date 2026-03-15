@@ -171,6 +171,7 @@ export default function SessionWorkspace() {
           <LiveInterview
             key={interviewLifecycle === "pre" ? "pre" : "post-or-active"}
             sessionId={sessionId}
+            slideCount={session.sessionState?.slide_count ?? 0}
             initialLifecycle={interviewLifecycle}
             savedTranscript={session.sessionState?.live_transcript ?? []}
             savedScores={session.sessionState?.delivery_scores ?? null}
@@ -188,7 +189,7 @@ export default function SessionWorkspace() {
         return (
           <DeckAnalysis
             critique={session.sessionState?.deck_critique ?? null}
-            slideImages={session.sessionState?.slide_images ?? []}
+            sessionId={sessionId!}
             isLoading={session.isLoading && !session.sessionState}
             onContinue={() => session.setActivePhase(3)}
             continueLabel="Run Market Research"

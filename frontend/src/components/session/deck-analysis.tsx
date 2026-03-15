@@ -25,6 +25,7 @@ import { ScoreBar } from "@/components/ui/score-bar";
 import { CountUp } from "@/components/ui/count-up";
 import { scoreColor } from "@/lib/score-utils";
 import { PhaseShell } from "@/components/ui/phase-shell";
+import { getSlideUrl } from "@/services/api";
 
 // ─── Score Summary Row ────────────────────────────────────────────────────────
 
@@ -128,16 +129,15 @@ function OverallSummary({ summary }: { summary: string }) {
 
 function SlideDetailView({
   slides,
-  images,
+  sessionId,
 }: {
   slides: SlideNote[];
-  images: string[];
+  sessionId: string;
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [ref, inView] = useInView();
 
   const selected = slides[selectedIndex];
-  const selectedImage = images[selectedIndex];
 
   return (
     <div ref={ref as React.RefObject<HTMLDivElement>}>
@@ -173,15 +173,15 @@ function SlideDetailView({
               >
                 {/* Thumbnail */}
                 <div className="flex-shrink-0 w-16 h-9 rounded overflow-hidden border border-[#1e1e1e] bg-[#161616] flex items-center justify-center">
-                  {images[i] ? (
-                    <img
-                      src={`data:image/png;base64,${images[i]}`}
-                      alt={`Slide ${i + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-[9px] font-mono text-[#3a3a3a]">{i + 1}</span>
-                  )}
+                  <img
+                    src={getSlideUrl(sessionId, i)}
+                    alt={`Slide ${i + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  <span className="text-[9px] font-mono text-[#3a3a3a] absolute">{i + 1}</span>
                 </div>
 
                 {/* Title + score */}
@@ -210,17 +210,19 @@ function SlideDetailView({
           >
             {/* Slide image */}
             <div className="border-b border-[#1e1e1e] bg-[#080808]">
-              {selectedImage ? (
-                <img
-                  src={`data:image/png;base64,${selectedImage}`}
-                  alt={`Slide ${selectedIndex + 1}`}
-                  className="w-full h-auto object-contain"
-                />
-              ) : (
-                <div className="aspect-[16/9] flex items-center justify-center">
-                  <span className="text-xs font-mono text-[#3a3a3a]">No image</span>
-                </div>
-              )}
+              <img
+                src={getSlideUrl(sessionId, selectedIndex)}
+                alt={`Slide ${selectedIndex + 1}`}
+                className="w-full h-auto object-contain"
+                onError={(e) => {
+                  const el = e.currentTarget as HTMLImageElement;
+                  el.style.display = "none";
+                  el.nextElementSibling?.removeAttribute("style");
+                }}
+              />
+              <div className="aspect-[16/9] flex items-center justify-center" style={{ display: "none" }}>
+                <span className="text-xs font-mono text-[#3a3a3a]">No image</span>
+              </div>
             </div>
 
             {/* Slide info + critique */}
@@ -542,7 +544,7 @@ function DeckAnalysisEmpty({
 
 interface DeckAnalysisProps {
   critique: DeckCritique | null;
-  slideImages: string[];
+  sessionId: string;
   isLoading?: boolean;
   onContinue?: () => void;
   continueLabel?: string;
@@ -553,7 +555,7 @@ interface DeckAnalysisProps {
 
 export default function DeckAnalysis({
   critique,
-  slideImages,
+  sessionId,
   isLoading = false,
   onContinue,
   continueLabel,
@@ -652,7 +654,7 @@ export default function DeckAnalysis({
 
       {/* Slide detail view */}
       {critique.slides.length > 0 && (
-        <SlideDetailView slides={critique.slides} images={slideImages} />
+        <SlideDetailView slides={critique.slides} sessionId={sessionId} />
       )}
 
       {/* Issues + Missing */}
