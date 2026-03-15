@@ -438,7 +438,7 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, hasDeck,
       <div className="flex gap-5 flex-1 min-h-0">
 
         {/* ── LEFT: delivery results — fixed 300px, own scroll ─────────────── */}
-        <div className="w-[300px] flex-shrink-0 min-h-0 overflow-y-auto flex flex-col gap-4 pb-6">
+        <div className="w-[300px] flex-shrink-0 min-h-0 overflow-y-auto flex flex-col gap-4 pb-6 scrollbar-none">
 
           {/* Stats — compact horizontal rows */}
           <div className="flex flex-col gap-2">
@@ -599,7 +599,7 @@ function PostInterviewScreen({ sessionId, scores, transcript, duration, hasDeck,
             </div>
             <p className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">Training Review</p>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-none">
             <TrainingReviewPanel sessionId={sessionId} />
           </div>
         </div>
@@ -688,6 +688,12 @@ export default function LiveInterview({
   const pipeline = useAudioPipeline();
   const analyser = useAudioAnalyser();
 
+  // Keep stable refs so async callbacks always read the latest values
+  const interviewRef = useRef(interview);
+  interviewRef.current = interview;
+  const pipelineRef = useRef(pipeline);
+  pipelineRef.current = pipeline;
+
   // Track whether ended callback was already fired
   const endedFired = useRef(false);
   // Save elapsed seconds at interview end for post view
@@ -742,10 +748,11 @@ export default function LiveInterview({
   // mic so the user doesn't have to click anything — feels like a real phone call.
   useEffect(() => {
     interview.onFirstTurnComplete(() => {
-      const ws = interview.ws;
-      const audioCtx = interview.audioCtx;
+      // Read from refs to avoid stale closure — ws/audioCtx are null at mount time
+      const ws = interviewRef.current.ws;
+      const audioCtx = interviewRef.current.audioCtx;
       if (!ws || !audioCtx) return;
-      pipeline.startMic(ws, audioCtx).then(() => {
+      pipelineRef.current.startMic(ws, audioCtx).then(() => {
         setIsMicActive(true);
       }).catch(() => {
         // Mic permission denied or unavailable — user must click manually
