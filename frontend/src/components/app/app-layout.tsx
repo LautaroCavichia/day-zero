@@ -17,6 +17,8 @@ interface AppLayoutProps {
   onSelectPhase: (phase: WorkflowPhase) => void;
   marketIntelStatus?: TaskStatusValue;
   deliberationStatus?: TaskStatusValue;
+  /** Number of completed debate rounds (for Round N/3 in sidebar) */
+  debateRoundsCount?: number;
   /** Whether a live interview call is currently in progress */
   interviewIsActive?: boolean;
   /** Whether the interview has been completed at least once */
@@ -33,6 +35,7 @@ export default function AppLayout({
   onSelectPhase,
   marketIntelStatus,
   deliberationStatus,
+  debateRoundsCount,
   interviewIsActive = false,
   interviewDone = false,
 }: AppLayoutProps) {
@@ -55,6 +58,7 @@ export default function AppLayout({
         onSelectPhase={onSelectPhase}
         marketIntelStatus={marketIntelStatus}
         deliberationStatus={deliberationStatus}
+        debateRoundsCount={debateRoundsCount}
         interviewIsActive={interviewIsActive}
         interviewDone={interviewDone}
       />

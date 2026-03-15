@@ -7,7 +7,7 @@
 //   3. Top Issues + Missing Slides (two column)
 //   4. Strengths
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import type { DeckCritique, SlideNote } from "@/types/session";
 import { useInView } from "@/hooks/useInView";
+import { ScoreBar } from "@/components/ui/score-bar";
+import { CountUp } from "@/components/ui/count-up";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,96 +29,6 @@ function scoreColor(score: number): string {
   if (score >= 7.5) return "text-[#C8FF00]";
   if (score >= 5) return "text-[#a0a0a0]";
   return "text-red-400";
-}
-
-function scoreBarWidth(score: number, max = 10): string {
-  return `${Math.min(100, (score / max) * 100)}%`;
-}
-
-// Animated score bar — fills on mount
-function ScoreBar({
-  score,
-  max = 10,
-  delay = 0,
-}: {
-  score: number;
-  max?: number;
-  delay?: number;
-}) {
-  const [width, setWidth] = useState("0%");
-  const mounted = useRef(false);
-
-  useEffect(() => {
-    if (mounted.current) return;
-    mounted.current = true;
-    const t = setTimeout(() => {
-      setWidth(scoreBarWidth(score, max));
-    }, delay);
-    return () => clearTimeout(t);
-  }, [score, max, delay]);
-
-  return (
-    <div className="score-bar-track w-full">
-      <div className="score-bar-fill" style={{ width }} />
-    </div>
-  );
-}
-
-// Animated count-up number
-function CountUp({
-  value,
-  decimals = 1,
-  delay = 0,
-  suffix = "",
-}: {
-  value: number;
-  decimals?: number;
-  delay?: number;
-  suffix?: string;
-}) {
-  const [displayed, setDisplayed] = useState(0);
-  const raf = useRef<number | null>(null);
-  const startTime = useRef<number | null>(null);
-  const duration = 1200;
-
-  useEffect(() => {
-    let started = false;
-    const start = () => {
-      startTime.current = performance.now();
-      const tick = (now: number) => {
-        const elapsed = now - (startTime.current ?? now);
-        const progress = Math.min(1, elapsed / duration);
-        // Ease out cubic
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setDisplayed(parseFloat((eased * value).toFixed(decimals)));
-        if (progress < 1) {
-          raf.current = requestAnimationFrame(tick);
-        } else {
-          setDisplayed(value);
-        }
-      };
-      raf.current = requestAnimationFrame(tick);
-    };
-
-    const t = setTimeout(() => {
-      started = true;
-      start();
-    }, delay);
-
-    return () => {
-      clearTimeout(t);
-      if (!started && raf.current) cancelAnimationFrame(raf.current);
-      if (raf.current) cancelAnimationFrame(raf.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
-  return (
-    <span>
-      {displayed.toFixed(decimals)}
-      {suffix}
-    </span>
-  );
 }
 
 // ─── Score Summary Row ────────────────────────────────────────────────────────

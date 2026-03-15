@@ -16,6 +16,8 @@ interface AppSidebarProps {
   onSelectPhase: (phase: WorkflowPhase) => void;
   marketIntelStatus?: TaskStatusValue;
   deliberationStatus?: TaskStatusValue;
+  /** Number of completed debate rounds (for "Round N/3" subtitle) */
+  debateRoundsCount?: number;
   /** Whether a live interview call is currently in progress */
   interviewIsActive?: boolean;
   /** Whether the interview has been completed at least once */
@@ -30,6 +32,7 @@ function phaseSubtitle(
   debateStatus?: TaskStatusValue,
   interviewIsActive?: boolean,
   interviewDone?: boolean,
+  debateRoundsCount?: number,
 ): string | null {
   if (phase === 1) {
     if (interviewIsActive) return "Interview in progress";
@@ -41,7 +44,10 @@ function phaseSubtitle(
     if (marketStatus === "completed") return "Research complete";
   }
   if (phase === 4) {
-    if (debateStatus === "running") return "Deliberating…";
+    if (debateStatus === "running") {
+      const n = debateRoundsCount ?? 0;
+      return n > 0 ? `Round ${n + 1}/3 in progress…` : "Deliberating…";
+    }
     if (debateStatus === "failed") return "Deliberation failed";
     if (debateStatus === "completed") return "Panel complete";
   }
@@ -59,6 +65,7 @@ export default function AppSidebar({
   onSelectPhase,
   marketIntelStatus,
   deliberationStatus,
+  debateRoundsCount,
   interviewIsActive = false,
   interviewDone = false,
 }: AppSidebarProps) {
@@ -99,6 +106,7 @@ export default function AppSidebar({
             deliberationStatus,
             interviewIsActive,
             interviewDone,
+            debateRoundsCount,
           );
           const hasFailed =
             (phase === 3 && marketIntelStatus === "failed") ||

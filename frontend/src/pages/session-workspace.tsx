@@ -13,8 +13,14 @@ import AppLayout from "@/components/app/app-layout";
 import LiveInterview from "@/components/session/live-interview";
 import type { InterviewLifecycle } from "@/components/session/live-interview";
 import DeckAnalysis from "@/components/session/deck-analysis";
+import MarketIntelComponent from "@/components/session/market-intel";
+import DeliberationComponent from "@/components/session/deliberation";
+import VerdictComponent from "@/components/session/verdict";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { PhaseToastContainer } from "@/components/ui/phase-toast";
 import { useSession } from "@/hooks/useSession";
+import { usePhaseNotifications } from "@/hooks/usePhaseNotifications";
+import { api } from "@/services/api";
 import type { WorkflowPhase } from "@/types/session";
 import { Lock } from "lucide-react";
 
@@ -77,6 +83,12 @@ export default function SessionWorkspace() {
   const navigate = useNavigate();
 
   const session = useSession();
+
+  // Phase completion notifications
+  const { toasts, dismiss } = usePhaseNotifications(
+    session.sessionState?.market_intel_status?.status,
+    session.sessionState?.deliberation_status?.status,
+  );
 
   // Track whether an interview call is currently live (for nav guard)
   const [interviewIsActive, setInterviewIsActive] = useState(false);
@@ -204,9 +216,42 @@ export default function SessionWorkspace() {
           />
         );
       case 3:
+        return (
+          <MarketIntelComponent
+            marketIntel={session.sessionState?.market_intel ?? null}
+            status={session.sessionState?.market_intel_status?.status ?? "idle"}
+            statusError={session.sessionState?.market_intel_status?.error}
+            canTrigger={!!session.sessionState?.pitch_context}
+            onTrigger={async () => {
+              await api.triggerMarketValidation(sessionId);
+              session.startPolling();
+            }}
+            onContinue={() => session.setActivePhase(4)}
+            nextPhaseLabel="Continue to Deliberation"
+          />
+        );
       case 4:
+        return (
+          <DeliberationComponent
+            rounds={session.sessionState?.debate_rounds ?? []}
+            status={session.sessionState?.deliberation_status?.status ?? "idle"}
+            statusError={session.sessionState?.deliberation_status?.error}
+            canTrigger={!!session.sessionState?.pitch_context}
+            onTrigger={async () => {
+              await api.triggerDeliberation(sessionId);
+              session.startPolling();
+            }}
+            onContinue={() => session.setActivePhase(5)}
+            nextPhaseLabel="View Final Verdict"
+          />
+        );
       case 5:
-        return <PhasePlaceholder phase={session.activePhase} />;
+        return (
+          <VerdictComponent
+            verdict={session.sessionState?.final_verdict ?? null}
+            deliberationStatus={session.sessionState?.deliberation_status?.status ?? "idle"}
+          />
+        );
     }
   };
 
@@ -236,6 +281,7 @@ export default function SessionWorkspace() {
         onSelectPhase={handleSelectPhase}
         marketIntelStatus={session.sessionState?.market_intel_status?.status}
         deliberationStatus={session.sessionState?.deliberation_status?.status}
+        debateRoundsCount={session.sessionState?.debate_rounds?.length ?? 0}
         interviewIsActive={interviewIsActive}
         interviewDone={interviewDoneRef.current}
         interviewElapsed={0}
@@ -256,6 +302,9 @@ export default function SessionWorkspace() {
         onConfirm={handleNavConfirm}
         onCancel={handleNavCancel}
       />
+
+      {/* Phase completion toasts */}
+      <PhaseToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

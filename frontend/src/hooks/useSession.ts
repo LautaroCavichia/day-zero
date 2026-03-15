@@ -56,7 +56,9 @@ function derivePhaseStatuses(
         if (!hasPitch && !hasTranscript) return "locked";
         return marketDone ? "done" : "available";
       case 4:
-        if (!marketDone) return "locked";
+        // Deliberation auto-fires after interview ends, independent of market intel.
+        // Unlock as soon as pitch_context is populated.
+        if (!hasPitch) return "locked";
         return deliberationDone ? "done" : "available";
       case 5:
         if (!deliberationDone) return "locked";
