@@ -1,12 +1,12 @@
 """
 core/slide_store.py — Disk-based slide image store.
 
-Stores rendered slide PNGs on the filesystem under the OS temp directory so
-that they are never serialised into session state (which would bloat every
-read/write with megabytes of base64 data).
+Stores rendered slide PNGs on the filesystem under the project data directory
+so that they survive server restarts.  Slides are never serialised into session
+state (which would bloat every read/write with megabytes of base64 data).
 
 Directory layout:
-    <tempdir>/dayzero_slides/<session_id>/slide_<index:03d>_<tier>.png
+    data/slides/<session_id>/slide_<index:03d>_<tier>.png
 
 Two resolution tiers:
     "analysis"  — lower-res (≈150 DPI) used for Gemini multimodal analysis
@@ -23,14 +23,14 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import tempfile
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_BASE_DIR: Path = Path(tempfile.gettempdir()) / "dayzero_slides"
+# Resolve relative to this file: backend/core/slide_store.py → project root / data / slides
+_BASE_DIR: Path = Path(__file__).resolve().parents[2] / "data" / "slides"
 
 ANALYSIS_DPI = 150  # Used for Gemini multimodal analysis (keeps token count low)
 DISPLAY_DPI = 220  # Used for the browser slide viewer (higher visual fidelity)

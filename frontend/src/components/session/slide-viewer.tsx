@@ -90,8 +90,12 @@ export default function SlideViewer({
         )}
 
         {imgError ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-xs text-[#5a5a5a]">Failed to load slide</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4">
+            <p className="text-xs text-[#5a5a5a] text-center">
+              Slide image unavailable.
+              <br />
+              Re-upload your deck to restore previews.
+            </p>
           </div>
         ) : (
           <img

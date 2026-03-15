@@ -171,7 +171,7 @@ export default function SessionWorkspace() {
           <LiveInterview
             key={interviewLifecycle === "pre" ? "pre" : "post-or-active"}
             sessionId={sessionId}
-            slideCount={session.sessionState?.slide_count ?? 0}
+            slideCount={session.sessionState?.slide_count || session.sessionState?.deck_critique?.slide_count || 0}
             initialLifecycle={interviewLifecycle}
             savedTranscript={session.sessionState?.live_transcript ?? []}
             savedScores={session.sessionState?.delivery_scores ?? null}

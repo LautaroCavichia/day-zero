@@ -613,10 +613,25 @@ async def get_slides(session_id: str):
     """
     Return slide count for the uploaded deck.
     Available after POST /api/upload-deck completes.
+    Falls back to deck_critique.slide_count for sessions that predate the
+    slide_count state field, or when slide_count was not persisted correctly.
     """
     state = await ss.default_store.require_state(session_id)
-    count = state.get("slide_count", 0)
+    count = state.get("slide_count") or 0
+    if not count:
+        # Fallback: read slide_count from deck_critique (always persisted)
+        critique = state.get("deck_critique") or {}
+        count = critique.get("slide_count", 0)
     return {"count": count}
+
+
+def _resolve_slide_count(state: dict) -> int:
+    """Return the true slide count, checking state field then deck_critique fallback."""
+    count = state.get("slide_count") or 0
+    if not count:
+        critique = state.get("deck_critique") or {}
+        count = critique.get("slide_count", 0)
+    return count
 
 
 @app.get("/api/session/{session_id}/slides/{index}", tags=["Analysis"])
@@ -626,7 +641,7 @@ async def get_slide(session_id: str, index: int):
     Returns 404 if index is out of range or image not yet rendered.
     """
     state = await ss.default_store.require_state(session_id)
-    count = state.get("slide_count", 0)
+    count = _resolve_slide_count(state)
     if index < 0 or index >= count:
         raise HTTPException(status_code=404, detail=f"Slide {index} not found (count={count})")
     png_bytes = slide_store.get(session_id, index, "display")

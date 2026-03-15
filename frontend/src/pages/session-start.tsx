@@ -95,7 +95,8 @@ export default function SessionStart() {
           });
         }, 300);
 
-        await api.uploadDeck(sid, file);
+        setSlidesLoading(true);
+        const uploadResp = await api.uploadDeck(sid, file);
         clearInterval(stage1);
 
         // Stage 2 — Converting slides (30 → 65%)
@@ -108,8 +109,8 @@ export default function SessionStart() {
           });
         }, 400);
 
-        setSlidesLoading(true);
-        const resp = await api.getSlides(sid);
+        // slide_count comes directly from the upload response — no extra round-trip needed
+        const count = uploadResp.deck_critique?.slide_count ?? 0;
         clearInterval(stage2);
 
         // Stage 3 — Analyzing content (65 → 95%)
@@ -122,7 +123,7 @@ export default function SessionStart() {
           });
         }, 500);
 
-        setSlideCount(resp.count ?? 0);
+        setSlideCount(count);
         setUploadedFileName(file.name);
         clearInterval(stage3);
         setUploadProgress(100);
