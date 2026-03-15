@@ -17,7 +17,9 @@ export interface UseAudioPipelineReturn {
    *  playback works even before the mic is toggled on. */
   initPlayback: (audioCtx: AudioContext) => void;
   startMic: (ws: WebSocket, audioCtx: AudioContext) => Promise<void>;
-  stopMic: () => void;
+  /** Stop the mic. Pass the WebSocket to send audioStreamEnd to flush Gemini's
+   *  cached audio buffer — required per Gemini Live API best practices. */
+  stopMic: (ws?: WebSocket | null) => void;
   /** Call with PCM24 binary data received from the WebSocket to play AI audio */
   playAudioChunk: (chunk: ArrayBuffer) => void;
   /** Returns the AudioNode that plays AI audio, for connecting to an AnalyserNode */
@@ -98,8 +100,14 @@ export function useAudioPipeline(): UseAudioPipelineReturn {
     micRafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const stopMic = useCallback(() => {
+  const stopMic = useCallback((ws?: WebSocket | null) => {
     stopMicLevelLoop();
+
+    // Signal to Gemini that the audio stream has ended — this flushes any
+    // cached audio in Gemini's VAD buffer so it processes immediately.
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "end_stream_mic" }));
+    }
 
     if (workletRef.current) {
       workletRef.current.disconnect();

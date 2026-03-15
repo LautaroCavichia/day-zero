@@ -37,7 +37,6 @@ function derivePhaseStatuses(
     return { 1: "active", 2: "locked", 3: "locked", 4: "locked", 5: "locked" };
   }
 
-  const hasDeck = state.deck_analysis_done || !!state.deck_critique;
   const hasPitch = !!state.pitch_context;
   const hasTranscript = state.live_transcript && state.live_transcript.length > 0;
   const marketDone = state.market_intel_status?.status === "completed";

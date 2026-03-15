@@ -132,6 +132,32 @@ class GoogleProvider(LLMProvider):
             system_instruction=types.Content(parts=[types.Part(text=system_instruction)]),
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
+            # ── Voice: give Sam a distinct, sharp, direct voice ────────────
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
+                )
+            ),
+            # ── Native audio: affective dialog for natural speech ──────────
+            # Enables emotional, conversational delivery instead of flat TTS.
+            native_audio_config=types.NativeAudioConfig(
+                native_audio_generation_config=types.NativeAudioGenerationConfig(
+                    enable_affective_dialog=True,
+                )
+            ),
+            # ── VAD: fast end-of-speech so Sam can respond quickly ─────────
+            # END_SENSITIVITY_HIGH → detects silence after ~300-500ms (snappy)
+            # START_SENSITIVITY_LOW → doesn't cut user off mid-sentence pauses
+            # silence_duration_ms=500 → 0.5s of silence = turn done (was ~1s+)
+            realtime_input_config=types.RealtimeInputConfig(
+                automatic_activity_detection=types.AutomaticActivityDetection(
+                    disabled=False,
+                    start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_LOW,
+                    end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
+                    prefix_padding_ms=200,
+                    silence_duration_ms=500,
+                )
+            ),
         )
 
         try:
@@ -353,6 +379,13 @@ class GoogleProvider(LLMProvider):
                         logger.info("Audio stream ended: session=%s", session_id)
                         break
 
+                    elif msg_type == "end_stream_mic":
+                        # User muted — flush Gemini's VAD buffer so it processes
+                        # any speech it captured before the mic was stopped.
+                        await gemini_session.send_realtime_input(audio_stream_end=True)
+                        logger.info("Mic muted — audioStreamEnd sent: session=%s", session_id)
+                        # Don't break — keep the WS alive for the next unmute
+
                     elif msg_type == "slide_change":
                         slide_index = ctrl.get("index", 0)  # 0-based from frontend
                         slide_total = ctrl.get("total", "?")
@@ -466,17 +499,6 @@ class GoogleProvider(LLMProvider):
                         # Check if Sam said interview is complete
                         if "INTERVIEW_COMPLETE" in text:
                             interview_complete = True
-
-                        # DEBUG: Log topic markers
-                        if "[ASKING_TOPIC:" in text:
-                            import re
-
-                            topic_match = re.search(r"\[ASKING_TOPIC:\s*([^\]]+)\]", text)
-                            if topic_match:
-                                topic = topic_match.group(1).strip()
-                                logger.info(
-                                    "📌 SAM ASKING ABOUT: %s (session=%s)", topic, session_id
-                                )
 
                         await websocket.send_text(
                             json.dumps(

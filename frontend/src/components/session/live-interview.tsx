@@ -737,6 +737,23 @@ export default function LiveInterview({
     });
   }, [interview, pipeline, analyser]);
 
+  // ─── Auto-start mic after Sam's first greeting ───────────────────────────────
+  // Once Sam finishes speaking his opening question, automatically activate the
+  // mic so the user doesn't have to click anything — feels like a real phone call.
+  useEffect(() => {
+    interview.onFirstTurnComplete(() => {
+      const ws = interview.ws;
+      const audioCtx = interview.audioCtx;
+      if (!ws || !audioCtx) return;
+      pipeline.startMic(ws, audioCtx).then(() => {
+        setIsMicActive(true);
+      }).catch(() => {
+        // Mic permission denied or unavailable — user must click manually
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─── Init playback as soon as the AudioContext is ready (WS connected) ───────
   // This ensures Sam's audio plays even before the user clicks the mic button.
   // Use interview.status as the trigger since audioCtx is a ref (no re-render).
@@ -754,14 +771,14 @@ export default function LiveInterview({
       (interview.status === "ended" || interview.status === "error")
     ) {
       endedFired.current = true;
-      pipeline.stopMic();
+      pipeline.stopMic(interview.ws);
       analyser.disconnect();
       setIsMicActive(false);
       setFinalDuration(interview.elapsedSeconds);
       setLifecycle("post");
       onInterviewEnded?.();
     }
-  }, [lifecycle, interview.status, interview.elapsedSeconds, pipeline, analyser, onInterviewEnded]);
+  }, [lifecycle, interview.status, interview.elapsedSeconds, interview.ws, pipeline, analyser, onInterviewEnded]);
 
   // ─── Begin interview (user clicked "Begin Interview") ───────────────────────
   const handleBegin = useCallback(() => {
@@ -773,14 +790,14 @@ export default function LiveInterview({
   // ─── Redo interview ──────────────────────────────────────────────────────────
   const handleRedo = useCallback(() => {
     // Clean up any lingering state
-    pipeline.stopMic();
+    pipeline.stopMic(interview.ws);
     analyser.disconnect();
     setIsMicActive(false);
     endedFired.current = false;
     setFinalDuration(0);
     setCurrentSlide(0);
     setLifecycle("pre");
-  }, [pipeline, analyser]);
+  }, [pipeline, analyser, interview]);
 
   // ─── Slide change → notify WS ───────────────────────────────────────────────
   const handleSlideChange = useCallback(
@@ -796,7 +813,7 @@ export default function LiveInterview({
   // ─── Mic toggle ─────────────────────────────────────────────────────────────
   const handleToggleMic = useCallback(async () => {
     if (isMicActive) {
-      pipeline.stopMic();
+      pipeline.stopMic(interview.ws);
       setIsMicActive(false);
       return;
     }
@@ -814,7 +831,7 @@ export default function LiveInterview({
   // ─── End call (after confirmation) ──────────────────────────────────────────
   const handleEndCallConfirmed = useCallback(() => {
     setShowEndConfirm(false);
-    pipeline.stopMic();
+    pipeline.stopMic(interview.ws);
     analyser.disconnect();
     interview.endInterview();
     setIsMicActive(false);

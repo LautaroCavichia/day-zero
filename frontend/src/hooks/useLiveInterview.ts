@@ -31,6 +31,9 @@ export interface UseInterviewReturn {
   endInterview: () => void;
   /** Call with each binary PCM chunk received from the WS */
   onAudioChunk: (handler: (data: ArrayBuffer) => void) => void;
+  /** Register a one-time callback that fires after Sam's first turn_complete.
+   *  Used to auto-activate the mic after Sam's opening greeting. */
+  onFirstTurnComplete: (handler: () => void) => void;
 }
 
 export function useLiveInterview(): UseInterviewReturn {
@@ -46,6 +49,36 @@ export function useLiveInterview(): UseInterviewReturn {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMounted = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
+  // One-time callback for auto-mic after Sam's first greeting
+  const firstTurnCallbackRef = useRef<(() => void) | null>(null);
+  const firstTurnFiredRef = useRef(false);
+
+  // ─── Founder transcript accumulation buffer ──────────────────────────────
+  // Gemini sends input_transcription in many small incremental chunks.
+  // We accumulate them and update a single "in-progress" bubble in real-time,
+  // then finalize it on turn_complete/interrupted instead of creating a new
+  // bubble for every chunk.
+  const founderBufRef = useRef<string[]>([]);
+  const founderBufStartedRef = useRef(false);
+
+  const flushFounderBuf = useCallback((finalTimestamp?: number) => {
+    if (!founderBufStartedRef.current) return;
+    const text = founderBufRef.current.join(" ").trim();
+    founderBufRef.current = [];
+    founderBufStartedRef.current = false;
+    if (!text) return;
+    // Replace the last in-progress Founder bubble with the finalized text
+    setTranscript((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.speaker === "Founder") {
+        return [...prev.slice(0, -1), { ...last, text }];
+      }
+      return [
+        ...prev,
+        { speaker: "Founder", text, timestamp: finalTimestamp ?? Date.now() / 1000 },
+      ];
+    });
+  }, []);
 
   useEffect(() => {
     isMounted.current = true;
@@ -80,16 +113,38 @@ export function useLiveInterview(): UseInterviewReturn {
     if (!isMounted.current) return;
 
     switch (event.type) {
-      case "transcript_input":
-        setTranscript((prev) => [
-          ...prev,
-          { speaker: "Founder", text: event.text, timestamp: event.timestamp },
-        ]);
+      case "transcript_input": {
+        // Accumulate incremental chunks into a single Founder bubble.
+        // On first chunk: create the placeholder bubble. On subsequent chunks:
+        // update the last bubble in-place (streaming effect in the UI).
+        founderBufRef.current.push(event.text);
+        const accumulated = founderBufRef.current.join(" ").trim();
+
+        if (!founderBufStartedRef.current) {
+          // First chunk — create the bubble
+          founderBufStartedRef.current = true;
+          setTranscript((prev) => [
+            ...prev,
+            { speaker: "Founder", text: accumulated, timestamp: event.timestamp },
+          ]);
+        } else {
+          // Subsequent chunks — update the last bubble in place
+          setTranscript((prev) => {
+            const last = prev[prev.length - 1];
+            if (last && last.speaker === "Founder") {
+              return [...prev.slice(0, -1), { ...last, text: accumulated }];
+            }
+            return prev;
+          });
+        }
         setIsSamSpeaking(false);
         if (isMounted.current) setStatus("listening");
         break;
+      }
 
       case "transcript_output":
+        // Finalize any in-progress Founder bubble before showing Sam's response
+        flushFounderBuf(event.timestamp);
         setTranscript((prev) => {
           // Merge consecutive Sam turns (streaming text can come in chunks)
           const last = prev[prev.length - 1];
@@ -109,11 +164,24 @@ export function useLiveInterview(): UseInterviewReturn {
         break;
 
       case "turn_complete":
+        // Finalize the Founder's accumulated input
+        flushFounderBuf();
+        founderBufRef.current = [];
+        founderBufStartedRef.current = false;
         setIsSamSpeaking(false);
         if (isMounted.current) setStatus("listening");
+        // Auto-mic: fire one-time callback after Sam's first greeting ends
+        if (!firstTurnFiredRef.current && firstTurnCallbackRef.current) {
+          firstTurnFiredRef.current = true;
+          firstTurnCallbackRef.current();
+        }
         break;
 
       case "interrupted":
+        // Sam was interrupted — finalize whatever Founder said so far
+        flushFounderBuf();
+        founderBufRef.current = [];
+        founderBufStartedRef.current = false;
         setIsSamSpeaking(false);
         if (isMounted.current) setStatus("listening");
         break;
@@ -123,7 +191,7 @@ export function useLiveInterview(): UseInterviewReturn {
         if (isMounted.current) setStatus("error");
         break;
     }
-  }, []);
+  }, [flushFounderBuf]);
 
   const connect = useCallback(
     (sessionId: string) => {
@@ -134,6 +202,9 @@ export function useLiveInterview(): UseInterviewReturn {
       setError(null);
       setTranscript([]);
       setElapsedSeconds(0);
+      founderBufRef.current = [];
+      founderBufStartedRef.current = false;
+      firstTurnFiredRef.current = false;
 
       // Create shared AudioContext (must be created in response to user gesture)
       if (!audioCtxRef.current) {
@@ -218,6 +289,10 @@ export function useLiveInterview(): UseInterviewReturn {
     audioChunkHandlerRef.current = handler;
   }, []);
 
+  const onFirstTurnComplete = useCallback((handler: () => void) => {
+    firstTurnCallbackRef.current = handler;
+  }, []);
+
   return {
     status,
     transcript,
@@ -231,5 +306,6 @@ export function useLiveInterview(): UseInterviewReturn {
     sendSlideChange,
     endInterview,
     onAudioChunk,
+    onFirstTurnComplete,
   };
 }
