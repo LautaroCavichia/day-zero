@@ -204,8 +204,8 @@ export default function Hero() {
               className={`page-load-item text-base text-[#a0a0a0] leading-relaxed max-w-md mb-10`}
               style={{ animationDelay: "460ms" }}
             >
-              A simulated VC panel that interrogates your idea across four rounds
-              — interview, deck critique, market research, and deliberation.{" "}
+              A simulated VC panel that interrogates your idea across four rounds:
+              interview, deck critique, market research, and deliberation.{" "}
               <span className="text-white/60">Not encouragement.</span>
             </p>
 

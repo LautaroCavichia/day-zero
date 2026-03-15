@@ -57,13 +57,13 @@ export default function VoiceChannel({
   return (
     <div className="flex flex-col items-center gap-5">
       {/* Orb container */}
-      <div className="relative w-48 h-48">
+      <div className="relative w-72 h-72">
         {/* Subtle glow ring when Sam is speaking */}
         {isSamSpeaking && (
           <div
             className="absolute inset-0 rounded-full pointer-events-none"
             style={{
-              boxShadow: `0 0 ${40 + audioLevel * 60}px rgba(200,255,0,${0.06 + audioLevel * 0.12})`,
+              boxShadow: `0 0 ${60 + audioLevel * 80}px rgba(200,255,0,${0.08 + audioLevel * 0.15})`,
               transition: "box-shadow 100ms ease",
             }}
           />
@@ -176,7 +176,7 @@ export default function VoiceChannel({
       {/* Mic level bar (visual feedback) */}
       {isMicActive && isActive && (
         <div className="flex items-center gap-2 w-full max-w-[160px]">
-          <Wifi className="size-3 text-[#5a5a5a] flex-shrink-0" strokeWidth={1.5} />
+          <Wifi className="size-3 text-[#5a5a5a] shrink-0" strokeWidth={1.5} />
           <div className="flex-1 score-bar-track">
             <div
               className="score-bar-fill"

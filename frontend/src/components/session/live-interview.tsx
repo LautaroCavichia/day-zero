@@ -31,7 +31,6 @@ import { useAudioAnalyser } from "@/hooks/useAudioAnalyser";
 import { api } from "@/services/api";
 import SlideViewer from "@/components/session/slide-viewer";
 import VoiceChannel from "@/components/session/voice-channel";
-import ChatTranscript from "@/components/session/chat-transcript";
 import TranscriptDrawer from "@/components/session/transcript-drawer";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import TrainingReviewPanel from "@/components/session/training-review";
@@ -891,63 +890,53 @@ export default function LiveInterview({
 
   // ─── Render: Active interview ────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-4 h-full">
-      {/* Main two-column split */}
-      <div className="flex gap-4 flex-1 min-h-0">
-        {/* Left: Slide viewer */}
-        <div className="flex-1 min-w-0 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-[#a0a0a0] uppercase tracking-widest">
-              Deck
-            </h2>
-            {slideCount > 0 && (
-              <span className="text-xs font-mono text-[#5a5a5a]">
-                {slideCount} slides
-              </span>
-            )}
-          </div>
-          <SlideViewer
-            sessionId={sessionId}
-            slideCount={slideCount}
-            currentIndex={currentSlide}
-            onSlideChange={handleSlideChange}
-          />
-        </div>
-
-        {/* Right: Voice + Transcript + Coaching */}
-        <div className="w-[320px] flex-shrink-0 flex flex-col gap-4">
-          {/* Voice channel */}
-          <div className="rounded-2xl border border-[#282828] bg-[#131313] p-5"
-            style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
-          >
-            <VoiceChannel
-              interviewStatus={interview.status}
-              pipelineStatus={pipeline.status}
-              isSamSpeaking={interview.isSamSpeaking}
-              audioLevel={analyser.audioLevel}
-              micLevel={pipeline.micLevel}
-              elapsedSeconds={interview.elapsedSeconds}
-              onToggleMic={handleToggleMic}
-              onEndCall={() => setShowEndConfirm(true)}
-              isMicActive={isMicActive}
+    <div className="flex flex-col h-full w-full animate-[phase-enter_0.4s_cubic-bezier(0.22,1,0.36,1)_both]">
+      <div className="max-w-7xl mx-auto w-full flex flex-col h-full px-4">
+        {/* Main two-column split */}
+        <div className="flex gap-8 flex-1 min-h-0 justify-center py-4">
+          {/* Left: Slide viewer */}
+          <div className="flex-1 min-w-0 max-w-4xl flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-[#a0a0a0] uppercase tracking-widest">
+                Deck
+              </h2>
+              {slideCount > 0 && (
+                <span className="text-xs font-mono text-[#5a5a5a]">
+                  {slideCount} slides
+                </span>
+              )}
+            </div>
+            <SlideViewer
+              sessionId={sessionId}
+              slideCount={slideCount}
+              currentIndex={currentSlide}
+              onSlideChange={handleSlideChange}
             />
           </div>
 
-          {/* Transcript */}
-          <div className="flex flex-col gap-2 flex-1 min-h-0">
-            <h2 className="text-sm font-medium text-[#a0a0a0] uppercase tracking-widest flex-shrink-0">
-              Transcript
-            </h2>
-            <ChatTranscript
-              transcript={interview.transcript}
-              isSamSpeaking={interview.isSamSpeaking}
-              className="flex-1 min-h-[160px] max-h-[280px]"
-            />
-          </div>
+          {/* Right: Voice + Coaching */}
+          <div className="w-[400px] flex-shrink-0 flex flex-col gap-4">
+            {/* Voice channel */}
+            <div className="rounded-2xl border border-[#282828] bg-[#131313] p-8 flex flex-col items-center justify-center"
+              style={{ boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3)" }}
+            >
+              <VoiceChannel
+                interviewStatus={interview.status}
+                pipelineStatus={pipeline.status}
+                isSamSpeaking={interview.isSamSpeaking}
+                audioLevel={analyser.audioLevel}
+                micLevel={pipeline.micLevel}
+                elapsedSeconds={interview.elapsedSeconds}
+                onToggleMic={handleToggleMic}
+                onEndCall={() => setShowEndConfirm(true)}
+                isMicActive={isMicActive}
+              />
+            </div>
 
-          {/* Coaching tips */}
-          <div className="flex-shrink-0">
-            <CoachingTipsPanel sessionId={sessionId} active={coachingActive} />
+            {/* Coaching tips */}
+            <div className="flex-shrink-0">
+              <CoachingTipsPanel sessionId={sessionId} active={coachingActive} />
+            </div>
           </div>
         </div>
       </div>
