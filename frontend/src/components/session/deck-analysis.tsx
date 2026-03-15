@@ -1,6 +1,6 @@
 // ─── DeckAnalysis ─────────────────────────────────────────────────────────────
 // Phase 2 orchestrator component.
-// Reads deck_critique + slide_images from sessionState (already in memory).
+// Reads deck_critique from sessionState and fetches slide images via URL.
 // Layout:
 //   1. Summary banner (overall_summary + score row)
 //   2. Slide-by-slide grid (inline expand on click)
