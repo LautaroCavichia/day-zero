@@ -16,16 +16,13 @@ import {
   Users,
   Lightbulb,
   RefreshCw,
-  ArrowRight,
   AlertCircle,
   ChevronRight,
-  Search,
   Zap,
 } from "lucide-react";
-import type { MarketIntel, Competitor, PivotSuggestion, TaskStatusValue, WorkflowPhase } from "@/types/session";
+import type { MarketIntel, Competitor, PivotSuggestion, TaskStatusValue } from "@/types/session";
 import { useInView } from "@/hooks/useInView";
 import { ScoreBar } from "@/components/ui/score-bar";
-import { CountUp } from "@/components/ui/count-up";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { SourceLink } from "@/components/ui/source-link";
 import { PhaseShell } from "@/components/ui/phase-shell";
@@ -402,46 +399,83 @@ function MarketIntelIdle({
   onTrigger: () => void;
   isTriggering: boolean;
 }) {
+  const previews = [
+    { icon: <Globe className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />, label: "TAM / SAM / SOM", desc: "Validated market sizing with analyst notes" },
+    { icon: <TrendingUp className="size-3.5 text-emerald-400" strokeWidth={1.5} />, label: "Tailwinds & Headwinds", desc: "Macro timing signals for your sector" },
+    { icon: <Users className="size-3.5 text-[#a0a0a0]" strokeWidth={1.5} />, label: "Competitor Map", desc: "Direct & indirect players with funding data" },
+    { icon: <Lightbulb className="size-3.5 text-amber-400" strokeWidth={1.5} />, label: "Pivot Opportunities", desc: "Adjacent market angles with precedent companies" },
+  ];
+
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-5 text-center px-6">
-      <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#0A1F12] border border-[#1A3D28]/60">
-        <Search className="size-6 text-[#C8FF00]" strokeWidth={1.5} />
+    <div className="flex flex-col gap-8 pb-8">
+      {/* Header */}
+      <div className="page-load-item" style={{ animationDelay: "0ms" }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">Market Intelligence</h1>
+            <p className="text-sm text-[#5a5a5a] mt-0.5">Grounded research on your market and competitive landscape</p>
+          </div>
+        </div>
       </div>
-      <div>
-        <h2 className="text-base font-semibold text-[#f0f0f0] mb-1">Market Intelligence</h2>
-        <p className="text-sm text-[#5a5a5a] max-w-sm leading-relaxed">
-          {canTrigger
-            ? "Run a deep research sweep on your market. We'll map competitors, validate market size claims, and identify timing signals."
-            : "Complete the interview or submit your pitch to enable market research."}
-        </p>
+
+      {/* Feature preview grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {previews.map((p, i) => (
+          <div
+            key={p.label}
+            className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex gap-3 items-start opacity-60"
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
+            <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[#161616] border border-[#1e1e1e] flex-shrink-0 mt-0.5">
+              {p.icon}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#c0c0c0]">{p.label}</p>
+              <p className="text-xs text-[#5a5a5a] leading-snug mt-0.5">{p.desc}</p>
+            </div>
+          </div>
+        ))}
       </div>
-      {canTrigger && (
-        <button
-          onClick={onTrigger}
-          disabled={isTriggering}
-          className="
-            flex items-center gap-2 px-5 py-2.5 rounded-xl
-            bg-[#C8FF00] text-black text-sm font-semibold
-            hover:bg-[#D4FF33] transition-all duration-150
-            active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
-          "
-        >
-          {isTriggering ? (
-            <>
-              <RefreshCw className="size-4 animate-spin" strokeWidth={2} />
-              Starting…
-            </>
-          ) : (
-            <>
-              <Zap className="size-4" strokeWidth={2} />
-              Run Market Research
-            </>
-          )}
-        </button>
-      )}
-      <div className="flex items-center gap-1.5 text-xs font-mono text-[#3a3a3a]">
-        <Globe className="size-3" strokeWidth={1.5} />
-        Powered by Google Search grounding
+
+      {/* CTA */}
+      <div className="flex flex-col items-center gap-4 text-center py-4">
+        {canTrigger ? (
+          <>
+            <p className="text-sm text-[#5a5a5a] max-w-sm leading-relaxed">
+              Run a deep research sweep on your market. Results are grounded with live Google Search data.
+            </p>
+            <button
+              onClick={onTrigger}
+              disabled={isTriggering}
+              className="
+                flex items-center gap-2 px-5 py-2.5 rounded-xl
+                bg-[#C8FF00] text-black text-sm font-semibold
+                hover:bg-[#D4FF33] transition-all duration-150
+                active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+              "
+            >
+              {isTriggering ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin" strokeWidth={2} />
+                  Starting…
+                </>
+              ) : (
+                <>
+                  <Zap className="size-4" strokeWidth={2} />
+                  Run Market Research
+                </>
+              )}
+            </button>
+            <div className="flex items-center gap-1.5 text-xs font-mono text-[#3a3a3a]">
+              <Globe className="size-3" strokeWidth={1.5} />
+              Powered by Google Search grounding · ~30–60 seconds
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-[#5a5a5a] max-w-sm leading-relaxed">
+            Complete the interview to enable market research.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -483,6 +517,9 @@ interface MarketIntelProps {
   onTrigger: () => Promise<void>;
   onContinue?: () => void;
   nextPhaseLabel?: string;
+  nextPhaseDescription?: string;
+  /** Called to re-run market research when already completed */
+  onRerun?: () => Promise<void>;
 }
 
 export default function MarketIntelComponent({
@@ -493,8 +530,11 @@ export default function MarketIntelComponent({
   onTrigger,
   onContinue,
   nextPhaseLabel,
+  nextPhaseDescription,
+  onRerun,
 }: MarketIntelProps) {
   const [isTriggering, setIsTriggering] = useState(false);
+  const [isRerunning, setIsRerunning] = useState(false);
 
   const handleTrigger = async () => {
     setIsTriggering(true);
@@ -502,6 +542,16 @@ export default function MarketIntelComponent({
       await onTrigger();
     } finally {
       setIsTriggering(false);
+    }
+  };
+
+  const handleRerun = async () => {
+    if (!onRerun) return;
+    setIsRerunning(true);
+    try {
+      await onRerun();
+    } finally {
+      setIsRerunning(false);
     }
   };
 
@@ -537,7 +587,10 @@ export default function MarketIntelComponent({
         </span>
       }
       continueLabel={nextPhaseLabel}
+      continueDescription={nextPhaseDescription}
       onContinue={onContinue}
+      onRerun={onRerun ? handleRerun : undefined}
+      isRerunning={isRerunning}
     >
       <MarketSizeCard marketSize={marketIntel.market_size} />
       <TailwindsHeadwinds whyNow={marketIntel.why_now} />

@@ -11,13 +11,10 @@
 
 import { useState } from "react";
 import {
-  MessageSquare,
   RefreshCw,
   AlertCircle,
   Users,
   ChevronDown,
-  ChevronRight,
-  ArrowRight,
   Loader,
 } from "lucide-react";
 import type { DebateRound, TaskStatusValue } from "@/types/session";
@@ -67,7 +64,7 @@ const PERSONAS: Record<"skeptic" | "optimist" | "operator", PersonaConfig> = {
 
 function RoundIndicator({
   totalRounds,
-  currentRound,
+  currentRound: _currentRound,
   isRunning,
 }: {
   totalRounds: number;
@@ -471,62 +468,90 @@ function DeliberationIdle({
   onTrigger: () => void;
   isTriggering: boolean;
 }) {
+  const personas = [
+    { key: "skeptic" as const, label: "Paul · The Skeptic", desc: "Challenges every assumption, stress-tests the market thesis" },
+    { key: "optimist" as const, label: "Elad · The Optimist", desc: "Champions the upside, finds the breakout analogies" },
+    { key: "operator" as const, label: "Keith · The Operator", desc: "Asks the hard execution questions, identifies risks" },
+  ];
+
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-5 text-center px-6">
-      <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#161616] border border-[#1e1e1e]">
-        <MessageSquare className="size-6 text-[#C8FF00]" strokeWidth={1.5} />
-      </div>
-      <div>
-        <h2 className="text-base font-semibold text-[#f0f0f0] mb-1">VC Deliberation</h2>
-        <p className="text-sm text-[#5a5a5a] max-w-sm leading-relaxed">
-          {canTrigger
-            ? "Three AI investors — Paul (Skeptic), Elad (Optimist), and Keith (Operator) — will debate your startup across 3 adversarial rounds."
-            : "Complete the interview to unlock the VC panel deliberation."}
-        </p>
-      </div>
-
-      {canTrigger && (
-        <button
-          onClick={onTrigger}
-          disabled={isTriggering}
-          className="
-            flex items-center gap-2 px-5 py-2.5 rounded-xl
-            bg-[#C8FF00] text-black text-sm font-semibold
-            hover:bg-[#D4FF33] transition-all duration-150
-            active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
-          "
-        >
-          {isTriggering ? (
-            <>
-              <RefreshCw className="size-4 animate-spin" strokeWidth={2} />
-              Starting…
-            </>
-          ) : (
-            <>
-              <Users className="size-4" strokeWidth={2} />
-              Start Deliberation
-            </>
-          )}
-        </button>
-      )}
-
-      {/* Persona hints */}
-      {canTrigger && (
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <span className="flex items-center gap-1.5 text-red-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-            Paul · Skeptic
-          </span>
-          <span className="flex items-center gap-1.5 text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-            Elad · Optimist
-          </span>
-          <span className="flex items-center gap-1.5 text-blue-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
-            Keith · Operator
-          </span>
+    <div className="flex flex-col gap-8 pb-8">
+      {/* Header */}
+      <div className="page-load-item" style={{ animationDelay: "0ms" }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-[#f0f0f0] font-heading">VC Deliberation</h1>
+            <p className="text-sm text-[#5a5a5a] mt-0.5">3-round adversarial panel debate</p>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Persona preview cards */}
+      <div className="flex flex-col gap-3">
+        {personas.map((p, i) => {
+          const cfg = PERSONAS[p.key];
+          return (
+            <div
+              key={p.key}
+              className={`rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex gap-3 items-start border-l-2 ${cfg.borderClass} opacity-60`}
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5 ${cfg.dotBg}`} />
+              <div>
+                <p className={`text-sm font-semibold ${cfg.colorClass}`}>{p.label}</p>
+                <p className="text-xs text-[#5a5a5a] leading-snug mt-0.5">{p.desc}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Round preview */}
+      <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-4 flex items-center gap-4 opacity-60">
+        <div className="flex items-center gap-1.5">
+          {[1, 2, 3].map((r) => (
+            <div key={r} className="flex items-center justify-center w-5 h-5 rounded-full bg-[#161616] border border-[#2a2a2a] text-[10px] font-mono text-[#3a3a3a]">
+              {r}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-[#5a5a5a]">3 adversarial rounds · escalating pressure each round</p>
+      </div>
+
+      {/* CTA */}
+      <div className="flex flex-col items-center gap-4 text-center py-4">
+        {canTrigger ? (
+          <>
+            <button
+              onClick={onTrigger}
+              disabled={isTriggering}
+              className="
+                flex items-center gap-2 px-5 py-2.5 rounded-xl
+                bg-[#C8FF00] text-black text-sm font-semibold
+                hover:bg-[#D4FF33] transition-all duration-150
+                active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+              "
+            >
+              {isTriggering ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin" strokeWidth={2} />
+                  Starting…
+                </>
+              ) : (
+                <>
+                  <Users className="size-4" strokeWidth={2} />
+                  Start Deliberation
+                </>
+              )}
+            </button>
+            <p className="text-xs font-mono text-[#3a3a3a]">~60–90 seconds · results stream in live</p>
+          </>
+        ) : (
+          <p className="text-sm text-[#5a5a5a] max-w-sm leading-relaxed">
+            Complete the interview to unlock the VC panel deliberation.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -567,6 +592,9 @@ interface DeliberationProps {
   onTrigger: () => Promise<void>;
   onContinue?: () => void;
   nextPhaseLabel?: string;
+  nextPhaseDescription?: string;
+  /** Called to re-run deliberation when already completed */
+  onRerun?: () => Promise<void>;
 }
 
 export default function DeliberationComponent({
@@ -577,8 +605,11 @@ export default function DeliberationComponent({
   onTrigger,
   onContinue,
   nextPhaseLabel,
+  nextPhaseDescription,
+  onRerun,
 }: DeliberationProps) {
   const [isTriggering, setIsTriggering] = useState(false);
+  const [isRerunning, setIsRerunning] = useState(false);
 
   const handleTrigger = async () => {
     setIsTriggering(true);
@@ -586,6 +617,16 @@ export default function DeliberationComponent({
       await onTrigger();
     } finally {
       setIsTriggering(false);
+    }
+  };
+
+  const handleRerun = async () => {
+    if (!onRerun) return;
+    setIsRerunning(true);
+    try {
+      await onRerun();
+    } finally {
+      setIsRerunning(false);
     }
   };
 
@@ -648,7 +689,10 @@ export default function DeliberationComponent({
         <span className="tag-pill tag-pill-pass">Complete</span>
       }
       continueLabel={nextPhaseLabel}
+      continueDescription={nextPhaseDescription}
       onContinue={onContinue}
+      onRerun={onRerun ? handleRerun : undefined}
+      isRerunning={isRerunning}
     >
       <RoundIndicator
         totalRounds={rounds.length}

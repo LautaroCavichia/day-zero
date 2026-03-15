@@ -9,6 +9,7 @@ interface DeckUploaderProps {
   onUpload: (file: File) => Promise<void>;
   isUploading?: boolean;
   uploadProgress?: number; // 0–100
+  uploadStageLabel?: string;
   uploadedFileName?: string | null;
   onClear?: () => void;
 }
@@ -25,6 +26,7 @@ export default function DeckUploader({
   onUpload,
   isUploading = false,
   uploadProgress = 0,
+  uploadStageLabel = "Analyzing deck…",
   uploadedFileName = null,
   onClear,
 }: DeckUploaderProps) {
@@ -111,9 +113,13 @@ export default function DeckUploader({
             <Upload className="size-5 text-[#C8FF00] animate-pulse" strokeWidth={1.5} />
           </div>
           <div>
-            <p className="text-sm text-[#f0f0f0]">Analyzing deck...</p>
+            <p className="text-sm text-[#f0f0f0]">{uploadStageLabel}</p>
             <p className="text-xs text-[#5a5a5a] mt-0.5">
-              Converting slides and running critique
+              {uploadProgress < 30
+                ? "Sending your file to the server…"
+                : uploadProgress < 65
+                ? "Rendering slides from your deck…"
+                : "Running AI critique on your content…"}
             </p>
           </div>
         </div>

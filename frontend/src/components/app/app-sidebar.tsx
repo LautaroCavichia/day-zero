@@ -4,7 +4,9 @@
 // Phases 3 & 4 show a spinner + status text when background tasks are running.
 // Phase 1 shows live interview state when a call is active.
 
-import { Check, Lock, Loader, Radio } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Lock, Loader, Radio, LayoutDashboard } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { PhaseStatuses } from "@/hooks/useSession";
 import type { TaskStatusValue, WorkflowPhase } from "@/types/session";
 import { WORKFLOW_PHASES } from "@/types/session";
@@ -22,6 +24,8 @@ interface AppSidebarProps {
   interviewIsActive?: boolean;
   /** Whether the interview has been completed at least once */
   interviewDone?: boolean;
+  /** Company name to show in the bottom bar */
+  companyName?: string;
 }
 
 // Dynamic subtitle for each phase
@@ -68,7 +72,43 @@ export default function AppSidebar({
   debateRoundsCount,
   interviewIsActive = false,
   interviewDone = false,
+  companyName,
 }: AppSidebarProps) {
+  // Count completed phases for the progress indicator
+  const doneCount = Object.values(phaseStatuses).filter((s) => s === "done").length;
+
+  // Track newly-completed phases for the pop animation
+  const prevStatuses = useRef<PhaseStatuses>({ ...phaseStatuses });
+  const [poppingPhases, setPoppingPhases] = useState<Set<WorkflowPhase>>(new Set());
+
+  useEffect(() => {
+    const prev = prevStatuses.current;
+    const newlyDone: WorkflowPhase[] = [];
+    for (const { phase } of WORKFLOW_PHASES) {
+      if (prev[phase] !== "done" && phaseStatuses[phase] === "done") {
+        newlyDone.push(phase);
+      }
+    }
+    prevStatuses.current = { ...phaseStatuses };
+
+    if (newlyDone.length > 0) {
+      setPoppingPhases((s) => {
+        const next = new Set(s);
+        newlyDone.forEach((p) => next.add(p));
+        return next;
+      });
+      // Clear after animation completes (550ms)
+      const timer = setTimeout(() => {
+        setPoppingPhases((s) => {
+          const next = new Set(s);
+          newlyDone.forEach((p) => next.delete(p));
+          return next;
+        });
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [phaseStatuses]);
+
   return (
     <aside
       className={`
@@ -79,12 +119,30 @@ export default function AppSidebar({
         overflow-hidden
       `}
     >
-      {/* Section label */}
-      {open && (
-        <div className="px-5 py-4 border-b border-[#1e1e1e]">
+      {/* Section label + dashboard link when open */}
+      {open ? (
+        <div className="px-5 py-3 border-b border-[#1e1e1e] flex items-center justify-between">
           <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase">
             Workflow
           </p>
+          <Link
+            to="/app"
+            className="inline-flex items-center gap-1 text-[10px] font-mono text-[#3a3a3a] hover:text-[#C8FF00]/70 transition-colors"
+          >
+            <LayoutDashboard className="size-3" />
+            Dashboard
+          </Link>
+        </div>
+      ) : (
+        /* Collapsed: dashboard icon at top */
+        <div className="py-3 flex justify-center border-b border-[#1e1e1e]">
+          <Link
+            to="/app"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-[#3a3a3a] hover:text-[#C8FF00]/70 hover:bg-[#161616] transition-all"
+            title="Back to Dashboard"
+          >
+            <LayoutDashboard className="size-4" />
+          </Link>
         </div>
       )}
 
@@ -134,6 +192,7 @@ export default function AppSidebar({
                   flex-shrink-0 flex items-center justify-center
                   w-7 h-7 rounded-full border text-xs font-mono font-semibold
                   transition-colors duration-200
+                  ${poppingPhases.has(phase) ? "phase-done-pop" : ""}
                   ${isActive
                     ? "bg-[#C8FF00] border-[#C8FF00] text-black"
                     : isDone
@@ -192,19 +251,59 @@ export default function AppSidebar({
         })}
       </nav>
 
-      {/* Bottom — session info when open */}
-      {open && (
-        <div className="px-5 py-4 border-t border-[#1e1e1e]">
-          {interviewIsActive ? (
-            <p className="text-xs text-[#C8FF00]/50 font-mono flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF00]/60 animate-pulse inline-block" />
-              Interview live
-            </p>
-          ) : (
-            <p className="text-xs text-[#5a5a5a] font-mono">Phase {activePhase} of 5</p>
-          )}
-        </div>
-      )}
+      {/* Bottom — session info */}
+      <div className="border-t border-[#1e1e1e]">
+        {open ? (
+          <div className="px-5 py-4 space-y-2">
+            {/* Company name */}
+            {companyName && (
+              <p className="text-xs font-medium text-[#a0a0a0] truncate">{companyName}</p>
+            )}
+            {/* Progress row */}
+            <div className="flex items-center justify-between">
+              {interviewIsActive ? (
+                <p className="text-xs text-[#C8FF00]/50 font-mono flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF00]/60 animate-pulse inline-block" />
+                  Interview live
+                </p>
+              ) : (
+                <p className="text-xs text-[#5a5a5a] font-mono">{doneCount}/5 complete</p>
+              )}
+              {/* Mini progress dots */}
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((p) => (
+                  <span
+                    key={p}
+                    className={`w-1 h-1 rounded-full transition-colors duration-300 ${
+                      phaseStatuses[p as WorkflowPhase] === "done"
+                        ? "bg-[#C8FF00]/60"
+                        : p === activePhase
+                        ? "bg-[#C8FF00]/30"
+                        : "bg-[#2a2a2a]"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Collapsed: just show progress dots vertically */
+          <div className="py-3 flex flex-col items-center gap-1">
+            {[1, 2, 3, 4, 5].map((p) => (
+              <span
+                key={p}
+                className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
+                  phaseStatuses[p as WorkflowPhase] === "done"
+                    ? "bg-[#C8FF00]/60"
+                    : p === activePhase
+                    ? "bg-[#C8FF00]/30"
+                    : "bg-[#2a2a2a]"
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </aside>
   );
 }

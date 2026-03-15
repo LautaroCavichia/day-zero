@@ -7,7 +7,7 @@
 //   3. Top Issues + Missing Slides (two column)
 //   4. Strengths
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,6 +17,9 @@ import {
   Plus,
   ChevronDown,
   Sparkles,
+  ArrowRight,
+  Upload,
+  RefreshCw,
 } from "lucide-react";
 import type { DeckCritique, SlideNote } from "@/types/session";
 import { useInView } from "@/hooks/useInView";
@@ -462,18 +465,54 @@ interface DeckAnalysisProps {
   critique: DeckCritique | null;
   slideImages: string[];
   isLoading?: boolean;
+  onContinue?: () => void;
+  continueLabel?: string;
+  continueDescription?: string;
+  /** Called with a new file when the user wants to re-upload their deck */
+  onReupload?: (file: File) => Promise<void>;
 }
 
 export default function DeckAnalysis({
   critique,
   slideImages,
   isLoading = false,
+  onContinue,
+  continueLabel,
+  continueDescription,
+  onReupload,
 }: DeckAnalysisProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isReuploading, setIsReuploading] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onReupload) return;
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = "";
+    setIsReuploading(true);
+    try {
+      await onReupload(file);
+    } finally {
+      setIsReuploading(false);
+    }
+  };
+
   if (isLoading) return <DeckAnalysisLoading />;
   if (!critique) return <DeckAnalysisEmpty />;
 
   return (
     <div className="flex flex-col gap-6 pb-8">
+      {/* Hidden file input for re-upload */}
+      {onReupload && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.pptx"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      )}
+
       {/* Page header */}
       <div className="page-load-item" style={{ animationDelay: "0ms" }}>
         <div className="flex items-center justify-between">
@@ -485,27 +524,55 @@ export default function DeckAnalysis({
               AI critique of your pitch deck
             </p>
           </div>
-          {/* Average score badge */}
-          <div className="flex flex-col items-end gap-0.5">
-            <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
-              Avg. Slide Score
-            </span>
-            <span
-              className={`text-xl font-mono font-semibold ${scoreColor(
-                critique.slides.length > 0
-                  ? critique.slides.reduce((sum, s) => sum + s.score, 0) /
+          <div className="flex items-center gap-3">
+            {/* Update Deck button */}
+            {onReupload && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isReuploading}
+                className="
+                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                  border border-[#2a2a2a] text-xs text-[#a0a0a0]
+                  hover:border-[#3a3a3a] hover:text-[#f0f0f0]
+                  transition-colors duration-150
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                "
+              >
+                {isReuploading ? (
+                  <>
+                    <RefreshCw className="size-3 animate-spin" strokeWidth={1.5} />
+                    Uploading…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="size-3" strokeWidth={1.5} />
+                    Update Deck
+                  </>
+                )}
+              </button>
+            )}
+            {/* Average score badge */}
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[10px] font-mono tracking-widest text-[#5a5a5a] uppercase">
+                Avg. Slide Score
+              </span>
+              <span
+                className={`text-xl font-mono font-semibold ${scoreColor(
+                  critique.slides.length > 0
+                    ? critique.slides.reduce((sum, s) => sum + s.score, 0) /
+                        critique.slides.length
+                    : 0
+                )}`}
+              >
+                {critique.slides.length > 0
+                  ? (
+                      critique.slides.reduce((sum, s) => sum + s.score, 0) /
                       critique.slides.length
-                  : 0
-              )}`}
-            >
-              {critique.slides.length > 0
-                ? (
-                    critique.slides.reduce((sum, s) => sum + s.score, 0) /
-                    critique.slides.length
-                  ).toFixed(1)
-                : "—"}
-              <span className="text-sm text-[#3a3a3a] font-mono">/10</span>
-            </span>
+                    ).toFixed(1)
+                  : "—"}
+                <span className="text-sm text-[#3a3a3a] font-mono">/10</span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -531,6 +598,37 @@ export default function DeckAnalysis({
 
       {/* Strengths */}
       <StrengthsPanel strengths={critique.strengths ?? []} />
+
+      {/* What's next card */}
+      {continueLabel && onContinue && (
+        <div className="page-load-item pt-2" style={{ animationDelay: "200ms" }}>
+          <div className="rounded-xl border border-[#1A3D28]/60 bg-[#0A1F12]/40 p-5 flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-[10px] font-mono tracking-widest text-[#C8FF00]/60 uppercase">
+                What's next
+              </span>
+              <span className="text-sm font-semibold text-[#f0f0f0]">{continueLabel}</span>
+              {continueDescription && (
+                <span className="text-xs text-[#5a5a5a] leading-snug mt-0.5">
+                  {continueDescription}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={onContinue}
+              className="
+                flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg
+                bg-[#C8FF00] text-black text-sm font-semibold
+                hover:bg-[#D4FF33] transition-colors duration-150
+                active:scale-[0.98]
+              "
+            >
+              Go
+              <ArrowRight className="size-4" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

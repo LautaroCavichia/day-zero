@@ -22,42 +22,6 @@ import { useSession } from "@/hooks/useSession";
 import { usePhaseNotifications } from "@/hooks/usePhaseNotifications";
 import { api } from "@/services/api";
 import type { WorkflowPhase } from "@/types/session";
-import { Lock } from "lucide-react";
-
-// ─── Placeholder for phases 3–5 ───────────────────────────────────────────────
-function PhasePlaceholder({ phase }: { phase: WorkflowPhase }) {
-  const labels: Record<WorkflowPhase, string> = {
-    1: "Live Interview",
-    2: "Deck Analysis",
-    3: "Market Validation",
-    4: "VC Deliberation",
-    5: "Verdict",
-  };
-  const descriptions: Record<WorkflowPhase, string> = {
-    1: "Voice interview with Sam",
-    2: "AI critique of your pitch deck",
-    3: "Real-time market & competitor intelligence",
-    4: "Panel of AI investors debate your startup",
-    5: "Investment decision and coaching report",
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4 text-center px-6">
-      <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-[#161616] border border-[#1e1e1e]">
-        <Lock className="size-5 text-[#3a3a3a]" strokeWidth={1.5} />
-      </div>
-      <div>
-        <h2 className="text-base font-semibold text-[#f0f0f0] mb-1">
-          Phase {phase}: {labels[phase]}
-        </h2>
-        <p className="text-sm text-[#5a5a5a] max-w-xs">{descriptions[phase]}</p>
-      </div>
-      <p className="text-xs font-mono text-[#3a3a3a]">
-        Complete earlier phases to unlock this one.
-      </p>
-    </div>
-  );
-}
 
 // ─── Phase content wrapper with entrance animation ────────────────────────────
 function PhasePanel({
@@ -88,6 +52,8 @@ export default function SessionWorkspace() {
   const { toasts, dismiss } = usePhaseNotifications(
     session.sessionState?.market_intel_status?.status,
     session.sessionState?.deliberation_status?.status,
+    useCallback(() => session.setActivePhase(3), [session]),
+    useCallback(() => session.setActivePhase(5), [session]),
   );
 
   // Track whether an interview call is currently live (for nav guard)
@@ -213,6 +179,13 @@ export default function SessionWorkspace() {
             critique={session.sessionState?.deck_critique ?? null}
             slideImages={session.sessionState?.slide_images ?? []}
             isLoading={session.isLoading && !session.sessionState}
+            onContinue={() => session.setActivePhase(3)}
+            continueLabel="Run Market Research"
+            continueDescription="Deep-dive competitor mapping, market sizing, and timing signals — powered by Google Search grounding."
+            onReupload={async (file: File) => {
+              await api.uploadDeck(sessionId!, file);
+              session.refresh();
+            }}
           />
         );
       case 3:
@@ -226,8 +199,13 @@ export default function SessionWorkspace() {
               await api.triggerMarketValidation(sessionId);
               session.startPolling();
             }}
+            onRerun={async () => {
+              await api.triggerMarketValidation(sessionId);
+              session.startPolling();
+            }}
             onContinue={() => session.setActivePhase(4)}
-            nextPhaseLabel="Continue to Deliberation"
+            nextPhaseLabel="Start VC Deliberation"
+            nextPhaseDescription="Three AI investors — Paul, Elad, and Keith — debate your startup across 3 adversarial rounds to reach an investment decision."
           />
         );
       case 4:
@@ -241,8 +219,13 @@ export default function SessionWorkspace() {
               await api.triggerDeliberation(sessionId);
               session.startPolling();
             }}
+            onRerun={async () => {
+              await api.triggerDeliberation(sessionId);
+              session.startPolling();
+            }}
             onContinue={() => session.setActivePhase(5)}
             nextPhaseLabel="View Final Verdict"
+            nextPhaseDescription="See the panel's investment decision, your weighted score, and actionable next steps."
           />
         );
       case 5:

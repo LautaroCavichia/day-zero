@@ -215,7 +215,7 @@ export default function Hero() {
               style={{ animationDelay: "560ms" }}
             >
               <a
-                href="/app"
+                href="/app/new"
                 className="group inline-flex items-center gap-2 rounded-lg bg-[#C8FF00] px-7 py-3.5 text-sm font-semibold text-black transition-all duration-200 hover:bg-[#D4FF33] shadow-[0_0_40px_rgba(200,255,0,0.22)] hover:shadow-[0_0_70px_rgba(200,255,0,0.35)]"
               >
                 Put your idea on trial

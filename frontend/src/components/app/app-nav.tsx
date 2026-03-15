@@ -1,8 +1,8 @@
 // ─── AppNav ───────────────────────────────────────────────────────────────────
 // Top navigation bar for the session workspace.
-// Shows: sidebar toggle, logo, session title, back link.
+// Shows: sidebar toggle, logo, session title, back to dashboard link.
 
-import { ArrowLeft, PanelLeft } from "lucide-react";
+import { LayoutDashboard, PanelLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import Logo from "@/components/shared/logo";
 
@@ -47,13 +47,13 @@ export default function AppNav({
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Back to home */}
+      {/* Back to dashboard */}
       <Link
-        to="/"
+        to="/app"
         className="inline-flex items-center gap-1.5 text-xs text-[#5a5a5a] hover:text-[#f0f0f0] transition-colors"
       >
-        <ArrowLeft className="size-3" strokeWidth={1.5} />
-        Back to home
+        <LayoutDashboard className="size-3" strokeWidth={1.5} />
+        Dashboard
       </Link>
     </header>
   );

@@ -1,6 +1,6 @@
 // ─── PhaseToastContainer ──────────────────────────────────────────────────────
 // Renders phase completion / failure toasts in the bottom-right corner.
-// Toasts animate in and auto-dismiss after 5s.
+// Toasts animate in and auto-dismiss after 5–8s.
 
 import { CheckCircle2, AlertCircle, X } from "lucide-react";
 import type { PhaseToast } from "@/hooks/usePhaseNotifications";
@@ -23,9 +23,9 @@ export function PhaseToastContainer({ toasts, onDismiss }: PhaseToastContainerPr
         <div
           key={toast.id}
           className={`
-            flex items-center gap-3 px-4 py-3 rounded-xl
+            flex items-start gap-3 px-4 py-3 rounded-xl
             border shadow-lg backdrop-blur-sm
-            max-w-xs
+            max-w-xs w-72
             ${toast.exiting ? "phase-toast-exit" : "phase-toast"}
             ${
               toast.variant === "success"
@@ -35,11 +35,28 @@ export function PhaseToastContainer({ toasts, onDismiss }: PhaseToastContainerPr
           `}
         >
           {toast.variant === "success" ? (
-            <CheckCircle2 className="size-4 flex-shrink-0 text-[#C8FF00]" strokeWidth={2} />
+            <CheckCircle2 className="size-4 flex-shrink-0 text-[#C8FF00] mt-0.5" strokeWidth={2} />
           ) : (
-            <AlertCircle className="size-4 flex-shrink-0 text-red-400" strokeWidth={2} />
+            <AlertCircle className="size-4 flex-shrink-0 text-red-400 mt-0.5" strokeWidth={2} />
           )}
-          <p className="text-sm text-[#e0e0e0] flex-1 leading-snug">{toast.message}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-[#e0e0e0] leading-snug">{toast.message}</p>
+            {toast.action && (
+              <button
+                onClick={() => {
+                  toast.action!.onClick();
+                  onDismiss(toast.id);
+                }}
+                className={`
+                  mt-1.5 text-xs font-semibold
+                  transition-colors duration-150
+                  ${toast.variant === "success" ? "text-[#C8FF00] hover:text-[#D4FF33]" : "text-red-400 hover:text-red-300"}
+                `}
+              >
+                {toast.action.label}
+              </button>
+            )}
+          </div>
           <button
             onClick={() => onDismiss(toast.id)}
             className="flex-shrink-0 p-0.5 rounded text-[#5a5a5a] hover:text-[#a0a0a0] transition-colors"

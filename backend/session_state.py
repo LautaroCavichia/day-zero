@@ -129,6 +129,38 @@ class _MemoryBackend:
     async def session_count(self) -> int:
         return len(self._store)
 
+    async def list_sessions(self) -> list[dict]:
+        import time as _time
+
+        now = _time.time()
+        results = []
+        for sid, state in self._store.items():
+            pc = state.get("pitch_context") or {}
+            fv = state.get("final_verdict") or {}
+            lt = state.get("live_transcript") or []
+            results.append(
+                {
+                    "session_id": sid,
+                    "created_at": now,
+                    "updated_at": now,
+                    "company_name": pc.get("company_name", ""),
+                    "one_liner": pc.get("one_liner", ""),
+                    "stage": pc.get("stage", ""),
+                    "verdict_decision": fv.get("decision"),
+                    "weighted_score": fv.get("weighted_score"),
+                    "deck_analysis_done": bool(state.get("deck_analysis_done")),
+                    "market_intel_status": (state.get("market_intel_status") or {}).get(
+                        "status", "idle"
+                    ),
+                    "deliberation_status": (state.get("deliberation_status") or {}).get(
+                        "status", "idle"
+                    ),
+                    "live_interview_active": bool(state.get("live_interview_active")),
+                    "transcript_turns": len(lt),
+                }
+            )
+        return results
+
 
 # ── Public SessionStore façade ────────────────────────────────────────────
 
@@ -227,6 +259,10 @@ class SessionStore:
     async def session_count(self) -> int:
         """Return total live session count (for health checks)."""
         return await self._b.session_count()
+
+    async def list_sessions(self) -> list[dict]:
+        """Return lightweight session summaries ordered by most-recently-updated."""
+        return await self._b.list_sessions()
 
 
 # ── Backend factory ────────────────────────────────────────────────────────

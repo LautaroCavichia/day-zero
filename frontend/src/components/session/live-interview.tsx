@@ -17,6 +17,7 @@ import {
   Target,
   AlertCircle,
   CheckCircle2,
+  BookOpen,
 } from "lucide-react";
 import { useLiveInterview } from "@/hooks/useLiveInterview";
 import { useAudioPipeline } from "@/hooks/useAudioPipeline";
@@ -26,6 +27,7 @@ import SlideViewer from "@/components/session/slide-viewer";
 import VoiceChannel from "@/components/session/voice-channel";
 import ChatTranscript from "@/components/session/chat-transcript";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import TrainingReviewPanel from "@/components/session/training-review";
 import type { DeliveryScores, TranscriptTurn } from "@/types/session";
 import Orb from "@/components/Orb";
 
@@ -258,7 +260,10 @@ function PreInterviewScreen({ slideCount, hasDeck, onBegin, isConnecting }: PreI
 
 // ─── Post-interview screen ────────────────────────────────────────────────────
 
+type PostView = "results" | "training";
+
 interface PostInterviewProps {
+  sessionId: string;
   scores: DeliveryScores | null;
   transcript: TranscriptTurn[];
   duration: number; // seconds
@@ -266,8 +271,9 @@ interface PostInterviewProps {
   onRedo: () => void;
 }
 
-function PostInterviewScreen({ scores, transcript, duration, onContinue, onRedo }: PostInterviewProps) {
+function PostInterviewScreen({ sessionId, scores, transcript, duration, onContinue, onRedo }: PostInterviewProps) {
   const [showRedoConfirm, setShowRedoConfirm] = useState(false);
+  const [view, setView] = useState<PostView>("results");
 
   const formatDuration = (s: number) => {
     const m = Math.floor(s / 60);
@@ -293,6 +299,31 @@ function PostInterviewScreen({ scores, transcript, duration, onContinue, onRedo 
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* View toggle */}
+          <div className="flex items-center rounded-lg border border-[#2a2a2a] bg-[#161616] p-0.5">
+            <button
+              onClick={() => setView("results")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${
+                view === "results"
+                  ? "bg-[#1e1e1e] text-[#f0f0f0]"
+                  : "text-[#5a5a5a] hover:text-[#a0a0a0]"
+              }`}
+            >
+              Results
+            </button>
+            <button
+              onClick={() => setView("training")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${
+                view === "training"
+                  ? "bg-[#0A1F12] text-[#C8FF00]"
+                  : "text-[#5a5a5a] hover:text-[#a0a0a0]"
+              }`}
+            >
+              <BookOpen className="size-3" strokeWidth={1.5} />
+              Training Mode
+            </button>
+          </div>
+
           <button
             onClick={() => setShowRedoConfirm(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-[#5a5a5a] bg-[#161616] border border-[#2a2a2a] hover:text-[#a0a0a0] hover:bg-[#1e1e1e] transition-all duration-150"
@@ -310,79 +341,88 @@ function PostInterviewScreen({ scores, transcript, duration, onContinue, onRedo 
         </div>
       </div>
 
-      {/* Two-column: scores + transcript */}
-      <div className="flex gap-5 flex-1 min-h-0">
-        {/* Left: Delivery scores */}
-        <div className="w-72 flex-shrink-0 flex flex-col gap-4">
-          <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 flex flex-col gap-4">
-            <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase">
-              Delivery Scores
-            </p>
-            {scores ? (
-              <div className="flex flex-col gap-3">
-                <ScoreRow
-                  label="Confidence"
-                  value={scores.confidence}
-                  icon={<Zap className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
-                  delay={100}
-                />
-                <ScoreRow
-                  label="Specificity"
-                  value={scores.specificity}
-                  icon={<Target className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
-                  delay={180}
-                />
-                <ScoreRow
-                  label="Energy"
-                  value={scores.energy}
-                  icon={<Mic className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
-                  delay={260}
-                />
-                <ScoreRow
-                  label="Hesitations"
-                  value={scores.hesitation_count}
-                  icon={<AlertCircle className="size-3.5 text-[#5a5a5a]" strokeWidth={1.5} />}
-                  delay={340}
-                  isCount
-                />
-              </div>
-            ) : (
-              <p className="text-xs text-[#3a3a3a] italic py-2">
-                Delivery scores will appear after analysis completes.
+      {/* Training Mode view */}
+      {view === "training" && (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <TrainingReviewPanel sessionId={sessionId} />
+        </div>
+      )}
+
+      {/* Results view: Two-column scores + transcript */}
+      {view === "results" && (
+        <div className="flex gap-5 flex-1 min-h-0">
+          {/* Left: Delivery scores */}
+          <div className="w-72 flex-shrink-0 flex flex-col gap-4">
+            <div className="rounded-xl border border-[#1e1e1e] bg-[#0c0c0c] p-5 flex flex-col gap-4">
+              <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase">
+                Delivery Scores
               </p>
-            )}
+              {scores ? (
+                <div className="flex flex-col gap-3">
+                  <ScoreRow
+                    label="Confidence"
+                    value={scores.confidence}
+                    icon={<Zap className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
+                    delay={100}
+                  />
+                  <ScoreRow
+                    label="Specificity"
+                    value={scores.specificity}
+                    icon={<Target className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
+                    delay={180}
+                  />
+                  <ScoreRow
+                    label="Energy"
+                    value={scores.energy}
+                    icon={<Mic className="size-3.5 text-[#C8FF00]" strokeWidth={1.5} />}
+                    delay={260}
+                  />
+                  <ScoreRow
+                    label="Hesitations"
+                    value={scores.hesitation_count}
+                    icon={<AlertCircle className="size-3.5 text-[#5a5a5a]" strokeWidth={1.5} />}
+                    delay={340}
+                    isCount
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-[#3a3a3a] italic py-2">
+                  Delivery scores will appear after analysis completes.
+                </p>
+              )}
+            </div>
+
+            {/* Next step nudge */}
+            <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/30 p-4">
+              <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase mb-2">
+                Next
+              </p>
+              <p className="text-xs text-[#a0a0a0] leading-relaxed mb-3">
+                Head to Deck Analysis to see slide-by-slide feedback and narrative scoring.
+              </p>
+              <button
+                onClick={onContinue}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] transition-colors duration-150"
+              >
+                View Deck Analysis
+                <ArrowRight className="size-3" strokeWidth={2} />
+              </button>
+            </div>
           </div>
 
-          {/* Next step nudge */}
-          <div className="rounded-xl border border-[#1A3D28]/40 bg-[#0A1F12]/30 p-4">
-            <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase mb-2">
-              Next
+          {/* Right: Full transcript */}
+          <div className="flex-1 min-w-0 flex flex-col gap-2">
+            <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase flex-shrink-0">
+              Full Transcript
             </p>
-            <p className="text-xs text-[#a0a0a0] leading-relaxed mb-3">
-              Head to Deck Analysis to see slide-by-slide feedback and narrative scoring.
-            </p>
-            <button
-              onClick={onContinue}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] transition-colors duration-150"
-            >
-              View Deck Analysis
-              <ArrowRight className="size-3" strokeWidth={2} />
-            </button>
+            <ChatTranscript
+              transcript={transcript}
+              isSamSpeaking={false}
+              className="flex-1"
+            />
           </div>
         </div>
-
-        {/* Right: Full transcript */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2">
-          <p className="text-xs font-mono tracking-widest text-[#5a5a5a] uppercase flex-shrink-0">
-            Full Transcript
-          </p>
-          <ChatTranscript
-            transcript={transcript}
-            isSamSpeaking={false}
-            className="flex-1"
-          />
-        </div>
-      </div>
+      )}
 
       {/* Redo confirm dialog */}
       <ConfirmDialog
@@ -612,6 +652,7 @@ export default function LiveInterview({
 
     return (
       <PostInterviewScreen
+        sessionId={sessionId}
         scores={displayScores}
         transcript={displayTranscript}
         duration={displayDuration}
@@ -684,15 +725,34 @@ export default function LiveInterview({
 
       {/* Pipeline error banner */}
       {pipeline.error && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/20 px-4 py-3">
+        <div className="rounded-lg border border-red-900/50 bg-red-950/20 px-4 py-3 flex items-start justify-between gap-3">
           <p className="text-xs text-red-400">{pipeline.error}</p>
+          <button
+            onClick={handleToggleMic}
+            className="flex-shrink-0 text-xs text-red-300/70 hover:text-red-300 underline transition-colors"
+          >
+            Retry mic
+          </button>
         </div>
       )}
 
       {/* Interview error banner */}
       {interview.error && (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/20 px-4 py-3">
-          <p className="text-xs text-red-400">{interview.error}</p>
+        <div className="rounded-lg border border-red-900/50 bg-red-950/20 px-4 py-3 flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <p className="text-xs text-red-400">
+              {interview.error.toLowerCase().includes("rate") || interview.error.toLowerCase().includes("quota")
+                ? "API rate limit reached — please wait a moment before reconnecting."
+                : interview.error === "Connection error"
+                ? "Connection to Sam was interrupted."
+                : interview.error}
+            </p>
+            {interview.status === "error" && (
+              <p className="text-[10px] text-red-400/60 font-mono">
+                Your transcript has been saved. You can redo the interview or continue to Deck Analysis.
+              </p>
+            )}
+          </div>
         </div>
       )}
 

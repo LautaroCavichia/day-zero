@@ -18,6 +18,7 @@ interface OnboardingStepsProps {
   onUpload: (file: File) => Promise<void>;
   isUploading: boolean;
   uploadProgress: number;
+  uploadStageLabel?: string;
   uploadedFileName: string | null;
   slides: string[]; // base64 PNGs, available after upload
   slidesLoading: boolean;
@@ -36,6 +37,7 @@ export default function OnboardingSteps({
   onUpload,
   isUploading,
   uploadProgress,
+  uploadStageLabel,
   uploadedFileName,
   slides,
   slidesLoading,
@@ -65,6 +67,7 @@ export default function OnboardingSteps({
         onUpload={onUpload}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
+        uploadStageLabel={uploadStageLabel}
         uploadedFileName={uploadedFileName}
         onClear={onClearDeck}
       />

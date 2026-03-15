@@ -245,3 +245,59 @@ class SqliteSessionStore:
             ) as cursor:
                 row = await cursor.fetchone()
         return row[0] if row else 0
+
+    async def list_sessions(self) -> list[dict[str, Any]]:
+        """
+        Return lightweight session summaries ordered by most-recently-updated first.
+
+        Extracts only the fields needed for the dashboard card without deserialising
+        the full state blob (especially avoids loading large slide_images arrays).
+        Uses SQLite's json_extract() for zero-Python-overhead field access.
+        """
+        async with aiosqlite.connect(self._db_path) as db:
+            async with db.execute(
+                """
+                SELECT
+                    session_id,
+                    created_at,
+                    updated_at,
+                    json_extract(state, '$.pitch_context.company_name') AS company_name,
+                    json_extract(state, '$.pitch_context.one_liner')    AS one_liner,
+                    json_extract(state, '$.pitch_context.stage')        AS stage,
+                    json_extract(state, '$.final_verdict.decision')     AS verdict_decision,
+                    json_extract(state, '$.final_verdict.weighted_score') AS weighted_score,
+                    json_extract(state, '$.deck_analysis_done')         AS deck_analysis_done,
+                    json_extract(state, '$.market_intel_status.status') AS market_intel_status,
+                    json_extract(state, '$.deliberation_status.status') AS deliberation_status,
+                    json_extract(state, '$.live_interview_active')      AS live_interview_active,
+                    (SELECT COUNT(*) FROM json_each(json_extract(state, '$.live_transcript'))) AS transcript_turns,
+                    (SELECT json_extract(value, '$.image')
+                       FROM json_each(json_extract(state, '$.slide_images'))
+                      LIMIT 1)                                          AS first_slide_thumb
+                FROM sessions
+                WHERE app_name=? AND user_id=?
+                ORDER BY updated_at DESC
+                """,
+                (self._app_name, self._user_id),
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        return [
+            {
+                "session_id": r[0],
+                "created_at": r[1],
+                "updated_at": r[2],
+                "company_name": r[3] or "",
+                "one_liner": r[4] or "",
+                "stage": r[5] or "",
+                "verdict_decision": r[6],  # "PASS" | "SOFT PASS" | "NO" | None
+                "weighted_score": r[7],  # 0–100 float | None
+                "deck_analysis_done": bool(r[8]),
+                "market_intel_status": r[9] or "idle",
+                "deliberation_status": r[10] or "idle",
+                "live_interview_active": bool(r[11]),
+                "transcript_turns": r[12] or 0,
+                # first_slide_thumb intentionally omitted — too large for list view
+            }
+            for r in rows
+        ]

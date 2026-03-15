@@ -29,7 +29,7 @@ export default function Footer() {
               Demo
             </a>
             <a
-              href="/app"
+              href="/app/new"
               className="text-xs text-[#5a5a5a] hover:text-[#a0a0a0] transition-colors"
             >
               Start

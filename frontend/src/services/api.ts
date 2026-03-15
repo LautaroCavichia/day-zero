@@ -8,10 +8,12 @@ import type {
   SlidesResponse,
   SlideResponse,
   CoachingResponse,
+  TrainingReview,
   VerdictResponse,
   DebateResponse,
   SourcesResponse,
   TaskStartedResponse,
+  ListSessionsResponse,
 } from "@/types/session";
 
 // Base URL is empty — Vite proxies /api and /ws to :8080
@@ -48,6 +50,10 @@ async function request<T>(
 // ─── Session ──────────────────────────────────────────────────────────────────
 
 export const api = {
+  // List all sessions (lightweight summaries for dashboard)
+  listSessions: (): Promise<ListSessionsResponse> =>
+    request<ListSessionsResponse>("/api/sessions"),
+
   // Create a new session
   createSession: (): Promise<CreateSessionResponse> =>
     request<CreateSessionResponse>("/api/session", { method: "POST" }),
@@ -122,6 +128,12 @@ export const api = {
   // Request real-time coaching tip
   getCoachingTip: (sessionId: string): Promise<CoachingResponse> =>
     request<CoachingResponse>(`/api/session/${sessionId}/coach`, {
+      method: "POST",
+    }),
+
+  // Get (or generate) post-interview training review
+  getTrainingReview: (sessionId: string): Promise<TrainingReview> =>
+    request<TrainingReview>(`/api/session/${sessionId}/training-review`, {
       method: "POST",
     }),
 };

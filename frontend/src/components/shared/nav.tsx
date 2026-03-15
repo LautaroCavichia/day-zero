@@ -38,7 +38,7 @@ export default function Nav() {
 
           {/* CTA — slides in when user scrolls past hero */}
           <a
-            href="/app"
+            href="/app/new"
             className={`inline-flex items-center gap-1.5 rounded-lg bg-[#C8FF00] px-4 py-2 text-xs font-semibold text-black transition-all duration-300 hover:bg-[#D4FF33] ${
               scrolled
                 ? "opacity-100 translate-y-0"

@@ -61,6 +61,7 @@ export default function AppLayout({
         debateRoundsCount={debateRoundsCount}
         interviewIsActive={interviewIsActive}
         interviewDone={interviewDone}
+        companyName={sessionName}
       />
 
       {/* Main content — offset for nav (top-14) and sidebar width */}

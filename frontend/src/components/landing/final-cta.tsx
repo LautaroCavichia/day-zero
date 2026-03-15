@@ -58,7 +58,7 @@ export default function FinalCta() {
           className={`anim-hidden ${inView ? "anim-fade-up anim-delay-400" : ""}`}
         >
           <a
-            href="/app"
+            href="/app/new"
             className="group inline-flex items-center gap-2.5 rounded-lg bg-[#C8FF00] px-9 py-4 text-sm font-semibold text-black transition-all duration-200 hover:bg-[#D4FF33] shadow-[0_0_50px_rgba(200,255,0,0.25)] hover:shadow-[0_0_80px_rgba(200,255,0,0.40)]"
           >
             Put your idea on trial

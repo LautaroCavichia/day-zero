@@ -210,6 +210,26 @@ export interface CoachingResponse {
   tip: string | null;
 }
 
+// ─── Training Review ──────────────────────────────────────────────────────────
+
+export type TurnRating = "strong" | "weak" | "missed";
+
+export interface TrainingTurn {
+  turn_index: number;
+  speaker: "Founder";
+  text: string;
+  question: string | null;
+  rating: TurnRating;
+  annotation: string;
+  ideal_answer: string;
+}
+
+export interface TrainingReview {
+  overall_summary: string;
+  top_improvements: string[];
+  turns: TrainingTurn[];
+}
+
 export interface VerdictResponse extends FinalVerdict {}
 
 export interface DebateResponse {
@@ -325,3 +345,42 @@ export const WORKFLOW_PHASES: Omit<PhaseInfo, "status">[] = [
   { phase: 4, label: "Deliberation", description: "3-round VC panel debate" },
   { phase: 5, label: "Verdict", description: "Final investment decision and next steps" },
 ];
+
+// ─── Dashboard / Session List ─────────────────────────────────────────────────
+
+export type SessionCardStatus =
+  | "new"          // No interview started yet
+  | "in_progress"  // Interview done, tasks still running
+  | "analyzing"    // Background tasks (market/deliberation) running
+  | "complete";    // Verdict received
+
+export interface SessionSummary {
+  session_id: string;
+  created_at: number;         // Unix timestamp
+  updated_at: number;         // Unix timestamp
+  company_name: string;
+  one_liner: string;
+  stage: string;
+  verdict_decision: VerdictDecision | null;
+  weighted_score: number | null;
+  deck_analysis_done: boolean;
+  market_intel_status: TaskStatusValue;
+  deliberation_status: TaskStatusValue;
+  live_interview_active: boolean;
+  transcript_turns: number;
+}
+
+export interface ListSessionsResponse {
+  sessions: SessionSummary[];
+}
+
+export function deriveSessionCardStatus(s: SessionSummary): SessionCardStatus {
+  if (s.verdict_decision != null) return "complete";
+  if (
+    s.market_intel_status === "running" ||
+    s.deliberation_status === "running"
+  )
+    return "analyzing";
+  if (s.transcript_turns > 0) return "in_progress";
+  return "new";
+}

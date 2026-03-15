@@ -35,6 +35,7 @@ from backend.agents.deliberation import run_deliberation  # noqa: E402
 from backend.agents.live_interview import run_live_interview  # noqa: E402
 from backend.agents.market_validator import validate_market  # noqa: E402
 from backend.agents.orchestrator import process_pitch  # noqa: E402
+from backend.agents.training import generate_training_review  # noqa: E402
 from backend.config import settings  # noqa: E402
 from backend.core.errors import (  # noqa: E402
     AgentError,
@@ -226,6 +227,19 @@ async def dayzero_error_handler(request: Request, exc: DayZeroError):
 # ── Session routes ─────────────────────────────────────────────────────────
 
 
+@app.get("/api/sessions", tags=["Session"])
+async def list_sessions():
+    """
+    List all sessions as lightweight summaries for the dashboard.
+
+    Returns sessions ordered by most-recently-updated first.
+    Heavy fields (slide_images, full transcripts) are excluded — only
+    the data needed to render a session card is returned.
+    """
+    summaries = await ss.default_store.list_sessions()
+    return {"sessions": summaries}
+
+
 @app.post("/api/session", response_model=SessionResponse, tags=["Session"])
 async def create_session():
     """Create a new DayZero session. Returns session_id."""
@@ -326,6 +340,26 @@ async def upload_deck(
     file_bytes = await file.read()
     if len(file_bytes) > settings.max_upload_bytes:
         raise FileTooLargeError(len(file_bytes), settings.max_upload_bytes)
+
+    # If a deck was previously analyzed, clear all downstream results so the
+    # user gets a clean re-run (market intel, deliberation, verdict all stale).
+    existing_critique = state.get("deck_critique")
+    if existing_critique is not None:
+        logger.info(
+            "upload_deck: re-upload detected for session=%s — clearing downstream results",
+            session_id,
+        )
+        await ss.default_store.update(
+            session_id,
+            {
+                "deck_analysis_done": False,
+                "market_intel": None,
+                "market_intel_status": {"status": "idle", "error": None},
+                "debate_rounds": [],
+                "deliberation_status": {"status": "idle", "error": None},
+                "final_verdict": None,
+            },
+        )
 
     critique = await analyze_deck(session_id, file_bytes, filename)
 
@@ -428,6 +462,7 @@ async def trigger_market_validation(session_id: str):
     Trigger market validation for this session.
     Requires pitch_context to be populated first (via /api/pitch).
     Runs in background — poll GET /api/session/{id} for market_intel.
+    Can be re-triggered after completion to refresh results.
     """
     _require_api_key()
     if not settings.enable_market_validation:
@@ -442,6 +477,16 @@ async def trigger_market_validation(session_id: str):
     market_status = state.get("market_intel_status", {}).get("status", "idle")
     if market_status == "running":
         return TaskStartedResponse(message="Market validation already running")
+
+    # Reset prior results so the frontend gets a clean loading state
+    if market_status in ("completed", "failed"):
+        await ss.default_store.update(
+            session_id,
+            {
+                "market_intel": None,
+                "market_intel_status": {"status": "idle", "error": None},
+            },
+        )
 
     asyncio.create_task(_run_market_validation_bg(session_id))
     return TaskStartedResponse(message="Market validation running in background")
@@ -470,6 +515,7 @@ async def trigger_deliberation(session_id: str):
     Trigger the VC deliberation panel.
     Requires at minimum a pitch_context. Better with market_intel and deck_critique.
     Runs in background — poll GET /api/session/{id}/debate and /verdict.
+    Can be re-triggered after completion to run a fresh round.
     """
     _require_api_key()
     state = await ss.default_store.require_state(session_id)
@@ -481,6 +527,17 @@ async def trigger_deliberation(session_id: str):
     delib_status = state.get("deliberation_status", {}).get("status", "idle")
     if delib_status == "running":
         return TaskStartedResponse(message="Deliberation already running")
+
+    # Reset prior results so the frontend gets a clean loading state
+    if delib_status in ("completed", "failed"):
+        await ss.default_store.update(
+            session_id,
+            {
+                "debate_rounds": [],
+                "deliberation_status": {"status": "idle", "error": None},
+                "final_verdict": None,
+            },
+        )
 
     asyncio.create_task(_run_deliberation_bg(session_id))
     return TaskStartedResponse(message="Deliberation panel running in background")
@@ -546,6 +603,37 @@ async def request_coaching(session_id: str):
 
     tip = await get_coaching_tip(transcript)
     return {"tip": tip}
+
+
+# ── Training Review ───────────────────────────────────────────────────────────
+
+
+@app.post("/api/session/{session_id}/training-review", tags=["Analysis"])
+async def get_training_review(session_id: str):
+    """
+    Generate (or return cached) a post-interview training review.
+
+    Analyzes the completed interview transcript against pitch context and
+    deck critique to produce per-turn annotations, ratings, and ideal
+    answers — surfaced as Training Mode in the frontend.
+
+    Returns 400 if the interview transcript is empty.
+    Returns the cached review if already generated (re-POST to regenerate).
+    """
+    _require_api_key()
+    state = await ss.default_store.require_state(session_id)
+
+    # Return cached result if available
+    existing = state.get("training_review")
+    if existing:
+        return existing
+
+    # Generate fresh review
+    try:
+        review = await generate_training_review(session_id)
+        return review
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ── Audio Deliberation WebSocket ─────────────────────────────────────────────

@@ -19,7 +19,6 @@ import {
   BookOpen,
   List,
   ChevronDown,
-  ArrowRight,
   Lock,
   Loader,
 } from "lucide-react";
