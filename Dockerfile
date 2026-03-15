@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # DayZero Dockerfile
 #
-# Multi-stage build for Python 3.11 FastAPI backend with:
+# Python 3.11 FastAPI backend with:
 # - pdf2image support (poppler-utils)
-# - PPTX to PDF conversion (LibreOffice headless)
+# - PPTX native rendering via python-pptx + Pillow (no LibreOffice)
 # - Google ADK + Gemini SDK
 # - WebSocket audio streaming
 #
@@ -17,10 +17,9 @@ FROM python:3.11-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # pdf2image dependencies
     poppler-utils \
-    # PPTX to PDF conversion
-    libreoffice \
-    libreoffice-writer \
-    libreoffice-impress \
+    # Fonts for native PPTX renderer (python-pptx + Pillow text rendering)
+    fonts-liberation \
+    fonts-dejavu-core \
     # Cleanup
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

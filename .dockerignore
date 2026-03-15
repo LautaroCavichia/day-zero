@@ -43,11 +43,24 @@ Thumbs.db
 .ruff_cache/
 .agents/
 sessions.db
+data/
 /tmp/
+
+# Tests
+tests/
+*.test.py
+*_test.py
+
+# Node / frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
 
 # Git
 .git/
 .gitignore
 
-# Documentation (keep README in image)
-# README.md is intentionally not ignored
+# Docs (not needed at runtime)
+docs/
+DEVPOST.md
+APP_PLAN.md

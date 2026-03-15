@@ -1,0 +1,241 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 780" font-family="'Inter', 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f1a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a2e;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="geminiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4285f4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f9d58;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a73e8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1558b0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="agentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6200ea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3700b3;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#4285f4"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#0f9d58"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#888"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#9c27b0"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1100" height="780" fill="url(#bgGrad)" rx="12"/>
+
+  <!-- Title -->
+  <text x="550" y="42" text-anchor="middle" fill="#ffffff" font-size="22" font-weight="700" letter-spacing="1">DayZero — System Architecture</text>
+  <text x="550" y="62" text-anchor="middle" fill="#888" font-size="12">Gemini Live API · Google ADK · Cloud Run · Google Search Grounding</text>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- ROW 1: USER / BROWSER -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <rect x="360" y="85" width="380" height="90" rx="10" fill="#1e2a3a" stroke="#4285f4" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="550" y="108" text-anchor="middle" fill="#4285f4" font-size="11" font-weight="600" letter-spacing="1">USER / BROWSER</text>
+  <!-- Three input methods -->
+  <rect x="375" y="116" width="104" height="46" rx="7" fill="#0d1a2b" stroke="#4285f4" stroke-width="1"/>
+  <text x="427" y="134" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">🎤 Live Interview</text>
+  <text x="427" y="150" text-anchor="middle" fill="#aaa" font-size="9">WebSocket · PCM audio</text>
+
+
+  <rect x="491" y="116" width="104" height="46" rx="7" fill="#0d1a2b" stroke="#4285f4" stroke-width="1"/>
+  <text x="543" y="134" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">📄 Deck Upload</text>
+  <text x="543" y="150" text-anchor="middle" fill="#aaa" font-size="9">REST · PDF / PPTX</text>
+
+
+  <rect x="607" y="116" width="104" height="46" rx="7" fill="#0d1a2b" stroke="#4285f4" stroke-width="1"/>
+  <text x="659" y="134" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">💬 Typed Pitch</text>
+  <text x="659" y="150" text-anchor="middle" fill="#aaa" font-size="9">REST · JSON body</text>
+
+
+  <!-- Arrow: Browser → Cloud Run -->
+  <line x1="550" y1="175" x2="550" y2="213" stroke="#4285f4" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+  <text x="558" y="198" fill="#4285f4" font-size="9">HTTPS / WSS</text>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- ROW 2: GCP CLOUD RUN -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- Cloud Run outer box -->
+  <rect x="60" y="215" width="980" height="180" rx="10" fill="#0d1f35" stroke="#1a73e8" stroke-width="2" filter="url(#shadow)"/>
+  <!-- GCP badge -->
+  <rect x="75" y="208" width="160" height="20" rx="4" fill="#1a73e8"/>
+  <text x="155" y="221" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">☁  Google Cloud Run</text>
+
+  <!-- FastAPI label -->
+  <text x="550" y="240" text-anchor="middle" fill="#1a73e8" font-size="11" font-weight="600" letter-spacing="0.5">FastAPI Backend · uvicorn · Docker (python:3.11-slim + poppler-utils)</text>
+
+  <!-- ADK box -->
+  <rect x="80" y="250" width="210" height="130" rx="8" fill="#12243a" stroke="#9c27b0" stroke-width="1.5"/>
+  <text x="185" y="270" text-anchor="middle" fill="#9c27b0" font-size="10" font-weight="700">ADK ORCHESTRATOR</text>
+  <text x="185" y="285" text-anchor="middle" fill="#ccc" font-size="9">LlmAgent (google-adk)</text>
+  <text x="185" y="300" text-anchor="middle" fill="#aaa" font-size="9">• Extracts pitch_context</text>
+  <text x="185" y="314" text-anchor="middle" fill="#aaa" font-size="9">• Manages session.state</text>
+  <text x="185" y="328" text-anchor="middle" fill="#aaa" font-size="9">• SQLite session store</text>
+  <text x="185" y="342" text-anchor="middle" fill="#aaa" font-size="9">• Routes to agents</text>
+  <text x="185" y="358" text-anchor="middle" fill="#555" font-size="8">gemini-2.5-flash</text>
+
+  <!-- Endpoints box -->
+  <rect x="310" y="250" width="180" height="130" rx="8" fill="#12243a" stroke="#1a73e8" stroke-width="1.5"/>
+  <text x="400" y="270" text-anchor="middle" fill="#1a73e8" font-size="10" font-weight="700">KEY ENDPOINTS</text>
+  <text x="320" y="288" fill="#aaa" font-size="8.5">WS  /ws/live/{id}</text>
+  <text x="320" y="302" fill="#aaa" font-size="8.5">WS  /ws/deliberation/{id}</text>
+  <text x="320" y="316" fill="#aaa" font-size="8.5">POST /api/upload-deck</text>
+  <text x="320" y="330" fill="#aaa" font-size="8.5">POST /api/validate-market</text>
+  <text x="320" y="344" fill="#aaa" font-size="8.5">POST /api/deliberate</text>
+  <text x="320" y="358" fill="#aaa" font-size="8.5">GET  /api/session/{id}/verdict</text>
+  <text x="320" y="372" fill="#aaa" font-size="8.5">GET  /health</text>
+
+  <!-- Agents box -->
+  <rect x="510" y="250" width="510" height="130" rx="8" fill="#12243a" stroke="#6200ea" stroke-width="1.5"/>
+  <text x="765" y="270" text-anchor="middle" fill="#9c27b0" font-size="10" font-weight="700">SPECIALIST AGENTS</text>
+
+  <!-- Agent 1: Live Interview -->
+  <rect x="522" y="278" width="118" height="90" rx="6" fill="#0f1a2b" stroke="#6200ea" stroke-width="1"/>
+  <text x="581" y="295" text-anchor="middle" fill="#ce93d8" font-size="9" font-weight="600">Live Interview</text>
+  <text x="581" y="308" text-anchor="middle" fill="#aaa" font-size="8">gemini-2.5-flash-</text>
+  <text x="581" y="319" text-anchor="middle" fill="#aaa" font-size="8">native-audio-preview</text>
+  <text x="581" y="332" text-anchor="middle" fill="#666" font-size="7.5">Bidirectional PCM</text>
+  <text x="581" y="343" text-anchor="middle" fill="#666" font-size="7.5">Sam · YC persona</text>
+  <text x="581" y="355" text-anchor="middle" fill="#666" font-size="7.5">Interruptable</text>
+  <text x="581" y="364" text-anchor="middle" fill="#555" font-size="7">live_interview.py</text>
+
+  <!-- Agent 2: Deck Analyst -->
+  <rect x="650" y="278" width="118" height="90" rx="6" fill="#0f1a2b" stroke="#6200ea" stroke-width="1"/>
+  <text x="709" y="295" text-anchor="middle" fill="#ce93d8" font-size="9" font-weight="600">Deck Analyst</text>
+  <text x="709" y="308" text-anchor="middle" fill="#aaa" font-size="8">gemini-2.5-flash</text>
+  <text x="709" y="319" text-anchor="middle" fill="#aaa" font-size="8">multimodal vision</text>
+  <text x="709" y="332" text-anchor="middle" fill="#666" font-size="7.5">PDF → images</text>
+  <text x="709" y="343" text-anchor="middle" fill="#666" font-size="7.5">PPTX → python-pptx</text>
+  <text x="709" y="355" text-anchor="middle" fill="#666" font-size="7.5">Slide-by-slide critique</text>
+  <text x="709" y="364" text-anchor="middle" fill="#555" font-size="7">deck_analyst.py</text>
+
+  <!-- Agent 3: Market Validator -->
+  <rect x="778" y="278" width="118" height="90" rx="6" fill="#0f1a2b" stroke="#6200ea" stroke-width="1"/>
+  <text x="837" y="295" text-anchor="middle" fill="#ce93d8" font-size="9" font-weight="600">Market Validator</text>
+  <text x="837" y="308" text-anchor="middle" fill="#aaa" font-size="8">gemini-2.5-flash</text>
+  <text x="837" y="319" text-anchor="middle" fill="#aaa" font-size="8">+ Google Search</text>
+  <text x="837" y="332" text-anchor="middle" fill="#666" font-size="7.5">Competitor matrix</text>
+  <text x="837" y="343" text-anchor="middle" fill="#666" font-size="7.5">Market sizing</text>
+  <text x="837" y="355" text-anchor="middle" fill="#666" font-size="7.5">Sourced claims</text>
+  <text x="837" y="364" text-anchor="middle" fill="#555" font-size="7">market_validator.py</text>
+
+  <!-- Agent 4: Deliberation -->
+  <rect x="906" y="278" width="103" height="90" rx="6" fill="#0f1a2b" stroke="#6200ea" stroke-width="1"/>
+  <text x="957" y="295" text-anchor="middle" fill="#ce93d8" font-size="9" font-weight="600">VC Deliberation</text>
+  <text x="957" y="308" text-anchor="middle" fill="#aaa" font-size="8">gemini-2.5-flash</text>
+  <text x="957" y="319" text-anchor="middle" fill="#aaa" font-size="8">3 rounds × 3 VCs</text>
+  <text x="957" y="332" text-anchor="middle" fill="#666" font-size="7.5">Paul · Skeptic</text>
+  <text x="957" y="343" text-anchor="middle" fill="#666" font-size="7.5">Elad · Optimist</text>
+  <text x="957" y="355" text-anchor="middle" fill="#666" font-size="7.5">Keith · Operator</text>
+  <text x="957" y="364" text-anchor="middle" fill="#555" font-size="7">deliberation.py</text>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- ROW 3: GEMINI API -->
+  <!-- ══════════════════════════════════════════════════════ -->
+
+  <!-- Arrow: Cloud Run → Gemini Live -->
+  <line x1="581" y1="395" x2="300" y2="490" stroke="#0f9d58" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+
+  <!-- Arrow: Cloud Run → Gemini Flash -->
+  <line x1="765" y1="395" x2="700" y2="490" stroke="#4285f4" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- Arrow: Cloud Run → Google Search -->
+  <line x1="837" y1="395" x2="940" y2="490" stroke="#888" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowGray)"/>
+
+  <!-- Gemini Live box -->
+  <rect x="130" y="492" width="280" height="80" rx="10" fill="#0a2010" stroke="#0f9d58" stroke-width="2" filter="url(#shadow)"/>
+  <text x="270" y="515" text-anchor="middle" fill="#0f9d58" font-size="11" font-weight="700">Gemini Live API</text>
+  <text x="270" y="532" text-anchor="middle" fill="#ccc" font-size="10">gemini-2.5-flash-native-audio-preview</text>
+  <text x="270" y="548" text-anchor="middle" fill="#888" font-size="9">Bidirectional audio streaming · VAD · interruption</text>
+  <text x="270" y="562" text-anchor="middle" fill="#888" font-size="9">google-genai SDK · WebSocket tunnel</text>
+
+  <!-- Gemini Flash box -->
+  <rect x="490" y="492" width="280" height="80" rx="10" fill="#0a1a30" stroke="#4285f4" stroke-width="2" filter="url(#shadow)"/>
+  <text x="630" y="515" text-anchor="middle" fill="#4285f4" font-size="11" font-weight="700">Gemini Flash (Text + Vision)</text>
+  <text x="630" y="532" text-anchor="middle" fill="#ccc" font-size="10">gemini-2.5-flash · JSON mode</text>
+  <text x="630" y="548" text-anchor="middle" fill="#888" font-size="9">Deck analysis · Market research · Deliberation</text>
+  <text x="630" y="562" text-anchor="middle" fill="#888" font-size="9">Coaching · Verdict generation</text>
+
+  <!-- Google Search box -->
+  <rect x="840" y="492" width="200" height="80" rx="10" fill="#1a1000" stroke="#fbbc04" stroke-width="2" filter="url(#shadow)"/>
+  <text x="940" y="515" text-anchor="middle" fill="#fbbc04" font-size="11" font-weight="700">Google Search</text>
+  <text x="940" y="532" text-anchor="middle" fill="#ccc" font-size="10">Native grounding tool</text>
+  <text x="940" y="548" text-anchor="middle" fill="#888" font-size="9">types.GoogleSearch</text>
+  <text x="940" y="562" text-anchor="middle" fill="#888" font-size="9">Sourced claims + URLs</text>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- ROW 4: SESSION STATE / DB + OUTPUT -->
+  <!-- ══════════════════════════════════════════════════════ -->
+
+  <!-- SQLite box -->
+  <rect x="130" y="615" width="200" height="70" rx="8" fill="#1a1a1a" stroke="#555" stroke-width="1.5"/>
+  <text x="230" y="638" text-anchor="middle" fill="#aaa" font-size="10" font-weight="600">SQLite Session Store</text>
+  <text x="230" y="654" text-anchor="middle" fill="#666" font-size="9">pitch_context · live_transcript</text>
+  <text x="230" y="668" text-anchor="middle" fill="#666" font-size="9">deck_critique · market_intel · verdict</text>
+
+  <!-- Output box -->
+  <rect x="380" y="615" width="590" height="70" rx="8" fill="#1a2010" stroke="#0f9d58" stroke-width="1.5"/>
+  <text x="675" y="638" text-anchor="middle" fill="#0f9d58" font-size="10" font-weight="600">OUTPUT TO USER</text>
+  <text x="480" y="655" text-anchor="middle" fill="#888" font-size="9">Interview transcript</text>
+  <text x="480" y="669" text-anchor="middle" fill="#888" font-size="9">+ audio playback</text>
+  <text x="617" y="655" text-anchor="middle" fill="#888" font-size="9">Slide critique</text>
+  <text x="617" y="669" text-anchor="middle" fill="#888" font-size="9">+ scores</text>
+  <text x="740" y="655" text-anchor="middle" fill="#888" font-size="9">Market intel</text>
+  <text x="740" y="669" text-anchor="middle" fill="#888" font-size="9">+ sources</text>
+  <text x="875" y="655" text-anchor="middle" fill="#888" font-size="9">VC verdict</text>
+  <text x="875" y="669" text-anchor="middle" fill="#888" font-size="9">+ coaching</text>
+
+  <!-- Arrows from Gemini rows to bottom -->
+  <line x1="270" y1="572" x2="230" y2="615" stroke="#555" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrowGray)"/>
+  <line x1="630" y1="572" x2="675" y2="615" stroke="#0f9d58" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrowGreen)"/>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- LEGEND -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <rect x="60" y="700" width="980" height="62" rx="8" fill="#0f0f1a" stroke="#333" stroke-width="1"/>
+  <text x="550" y="718" text-anchor="middle" fill="#555" font-size="9" font-weight="600">LEGEND</text>
+
+  <line x1="80" y1="735" x2="120" y2="735" stroke="#4285f4" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="127" y="739" fill="#888" font-size="9">HTTPS / WebSocket</text>
+
+  <line x1="240" y1="735" x2="280" y2="735" stroke="#0f9d58" stroke-width="1.5"/>
+  <text x="287" y="739" fill="#888" font-size="9">Audio stream (PCM)</text>
+
+  <line x1="420" y1="735" x2="460" y2="735" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="467" y="739" fill="#888" font-size="9">Gemini API call (GenAI SDK)</text>
+
+  <rect x="630" y="728" width="10" height="10" rx="2" fill="#0d1a2b" stroke="#9c27b0" stroke-width="1"/>
+  <text x="647" y="739" fill="#888" font-size="9">ADK Agent</text>
+
+  <rect x="740" y="728" width="10" height="10" rx="2" fill="#0a2010" stroke="#0f9d58" stroke-width="1"/>
+  <text x="757" y="739" fill="#888" font-size="9">Gemini Live API</text>
+
+  <rect x="860" y="728" width="10" height="10" rx="2" fill="#0a1a30" stroke="#4285f4" stroke-width="1"/>
+  <text x="877" y="739" fill="#888" font-size="9">Gemini Flash</text>
+
+  <rect x="975" y="728" width="10" height="10" rx="2" fill="#1a1000" stroke="#fbbc04" stroke-width="1"/>
+  <text x="992" y="739" fill="#888" font-size="9">Search</text>
+
+  <!-- Subtitle line bottom -->
+  <text x="550" y="756" text-anchor="middle" fill="#333" font-size="8">Built for Google ADK Hackathon · DayZero · March 2026</text>
+</svg>
