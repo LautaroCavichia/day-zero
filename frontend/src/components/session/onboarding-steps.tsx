@@ -37,6 +37,12 @@ interface OnboardingStepsProps {
   uploadedFileName: string | null;
   slideCount: number; // number of slides — images served via /api/session/{id}/slides/{index}
   slidesLoading: boolean;
+  /**
+   * True while the deck upload/analysis API call is in-flight and not yet
+   * resolved. Distinct from isUploading (which drives the DeckUploader
+   * progress bar). Used to gate Step 4 preview and Step 5 Start CTA.
+   */
+  deckProcessing: boolean;
   onClearDeck: () => void;
   /** Final action — parent navigates to the workspace */
   onStartInterview: () => void;
@@ -60,6 +66,7 @@ export default function OnboardingSteps({
   uploadedFileName,
   slideCount,
   slidesLoading,
+  deckProcessing,
   onClearDeck,
   onStartInterview,
 }: OnboardingStepsProps) {
@@ -304,8 +311,7 @@ export default function OnboardingSteps({
         </button>
         <button
           onClick={() => setStep(uploadedFileName ? 4 : 5)}
-          disabled={isUploading}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C8FF00] text-[#050505] text-sm font-semibold hover:bg-[#d4ff26] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C8FF00] text-[#050505] text-sm font-semibold hover:bg-[#d4ff26] transition-all duration-150"
         >
           {uploadedFileName ? "Preview slides" : "Continue"}
           <ChevronRight className="size-4" strokeWidth={2.5} />
@@ -340,13 +346,23 @@ export default function OnboardingSteps({
         Make sure everything converted correctly before the interview.
       </p>
 
-      <SlideViewer
-        sessionId={sessionId}
-        slideCount={slideCount}
-        currentIndex={slideIndex}
-        onSlideChange={setSlideIndex}
-        isLoading={slidesLoading}
-      />
+      {deckProcessing ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-12 rounded-xl border border-[#2a2a2a] bg-[#0c0c0c]">
+          <div className="w-8 h-8 rounded-full border-2 border-[#C8FF00]/20 border-t-[#C8FF00] animate-spin" />
+          <div className="text-center">
+            <p className="text-sm font-mono text-[#a0a0a0]">Processing deck…</p>
+            <p className="text-xs text-[#3a3a3a] mt-1">Slides will appear here once ready</p>
+          </div>
+        </div>
+      ) : (
+        <SlideViewer
+          sessionId={sessionId}
+          slideCount={slideCount}
+          currentIndex={slideIndex}
+          onSlideChange={setSlideIndex}
+          isLoading={slidesLoading}
+        />
+      )}
 
       <div className="flex items-center justify-between pt-1">
         <button
@@ -357,7 +373,8 @@ export default function OnboardingSteps({
         </button>
         <button
           onClick={() => setStep(5)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C8FF00] text-[#050505] text-sm font-semibold hover:bg-[#d4ff26] transition-all duration-150"
+          disabled={deckProcessing}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C8FF00] text-[#050505] text-sm font-semibold hover:bg-[#d4ff26] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
         >
           Looks good
           <ChevronRight className="size-4" strokeWidth={2.5} />
@@ -420,8 +437,11 @@ export default function OnboardingSteps({
                 strokeWidth={1.5}
               />
               <span className={`text-xs font-mono ${uploadedFileName ? "text-[#a0a0a0]" : "text-[#3a3a3a]"}`}>
-                {uploadedFileName ? "Deck ready" : "No deck"}
+                {deckProcessing ? "Processing…" : uploadedFileName ? "Deck ready" : "No deck"}
               </span>
+              {deckProcessing && (
+                <span className="w-3 h-3 rounded-full border border-[#C8FF00]/30 border-t-[#C8FF00] animate-spin ml-auto" />
+              )}
             </div>
             <div className="flex items-center gap-2 flex-1 px-5 py-3.5">
               <Mic className="size-3.5 flex-shrink-0 text-[#C8FF00]" strokeWidth={1.5} />
@@ -442,10 +462,20 @@ export default function OnboardingSteps({
 
         <button
           onClick={onStartInterview}
-          className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-[#C8FF00] text-[#050505] text-base font-bold hover:bg-[#d4ff26] active:scale-[0.98] transition-all duration-150 shadow-[0_0_30px_rgba(200,255,0,0.15)]"
+          disabled={deckProcessing}
+          className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-[#C8FF00] text-[#050505] text-base font-bold hover:bg-[#d4ff26] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 transition-all duration-150 shadow-[0_0_30px_rgba(200,255,0,0.15)]"
         >
-          <Play className="size-5" strokeWidth={2.5} />
-          Start Interview
+          {deckProcessing ? (
+            <>
+              <span className="w-5 h-5 rounded-full border-2 border-[#050505]/30 border-t-[#050505] animate-spin" />
+              Processing deck…
+            </>
+          ) : (
+            <>
+              <Play className="size-5" strokeWidth={2.5} />
+              Start Interview
+            </>
+          )}
         </button>
 
         <p className="text-xs text-[#3a3a3a] text-center">
@@ -469,6 +499,9 @@ export default function OnboardingSteps({
           const displayN = i + 1;
           const done = step > s.n;
           const active = step === s.n;
+          // Show a processing indicator on the "Upload deck" step (3) when
+          // the user has navigated away but the API call is still in-flight.
+          const processingInBg = s.n === 3 && deckProcessing && step !== 3;
           return (
             <div key={s.n} className="flex items-center">
               <div className="flex items-center gap-2">
@@ -492,6 +525,12 @@ export default function OnboardingSteps({
                 >
                   {s.label}
                 </span>
+                {processingInBg && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#C8FF00]/10 border border-[#C8FF00]/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF00] animate-pulse" />
+                    <span className="text-[9px] font-mono text-[#C8FF00]/70 tracking-wide">processing</span>
+                  </span>
+                )}
               </div>
               {i < visibleSteps.length - 1 && (
                 <div className="w-6 sm:w-8 h-px bg-[#1e1e1e] mx-2 sm:mx-3" />

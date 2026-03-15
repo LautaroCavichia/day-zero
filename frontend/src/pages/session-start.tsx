@@ -38,6 +38,9 @@ export default function SessionStart() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [slideCount, setSlideCount] = useState(0);
   const [slidesLoading, setSlidesLoading] = useState(false);
+  // deckReady = true once the upload+analysis API call completes successfully.
+  // deckProcessing = a file has been dropped but the API hasn't finished yet.
+  const [deckReady, setDeckReady] = useState(false);
 
   // ─── Ensure a session exists, create lazily on step 1 completion ──────────
   const ensureSession = useCallback(async (): Promise<string> => {
@@ -84,7 +87,10 @@ export default function SessionStart() {
       setUploadProgress(5);
       setUploadStageLabel("Uploading…");
       setSlideCount(0);
-      setUploadedFileName(null);
+      setDeckReady(false);
+      // Set the filename immediately so the user can leave Step 3 and see
+      // the deck referenced in the summary card while it processes.
+      setUploadedFileName(file.name);
 
       try {
         // Stage 1 — Uploading (5 → 30%)
@@ -124,13 +130,17 @@ export default function SessionStart() {
         }, 500);
 
         setSlideCount(count);
-        setUploadedFileName(file.name);
         clearInterval(stage3);
         setUploadProgress(100);
+        // Deck is fully processed — unblock Step 4 preview and Step 5 CTA
+        setDeckReady(true);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload failed";
         setSessionError(msg);
         lastFailedFile.current = file;
+        // Roll back the optimistic filename so the UI reflects the failure
+        setUploadedFileName(null);
+        setDeckReady(false);
       } finally {
         setIsUploading(false);
         setSlidesLoading(false);
@@ -145,6 +155,7 @@ export default function SessionStart() {
     setSlideCount(0);
     setUploadProgress(0);
     setUploadStageLabel("Uploading…");
+    setDeckReady(false);
   }, []);
 
   // ─── Start interview → navigate to workspace ──────────────────────────────
@@ -221,6 +232,7 @@ export default function SessionStart() {
           uploadedFileName={uploadedFileName}
           slideCount={slideCount}
           slidesLoading={slidesLoading}
+          deckProcessing={isUploading && !deckReady}
           onClearDeck={handleClearDeck}
           onStartInterview={handleStartInterview}
         />
