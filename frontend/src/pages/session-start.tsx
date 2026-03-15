@@ -28,7 +28,6 @@ export default function SessionStart() {
 
   // ─── Session state ─────────────────────────────────────────────────────────
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [creatingSession, setCreatingSession] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const lastFailedFile = useRef<File | null>(null);
 
@@ -37,13 +36,12 @@ export default function SessionStart() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStageLabel, setUploadStageLabel] = useState("Uploading…");
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
-  const [slides, setSlides] = useState<string[]>([]);
+  const [slideCount, setSlideCount] = useState(0);
   const [slidesLoading, setSlidesLoading] = useState(false);
 
   // ─── Ensure a session exists, create lazily on step 1 completion ──────────
   const ensureSession = useCallback(async (): Promise<string> => {
     if (sessionId) return sessionId;
-    setCreatingSession(true);
     setSessionError(null);
     try {
       const { session_id } = await api.createSession();
@@ -53,8 +51,6 @@ export default function SessionStart() {
       const msg = err instanceof Error ? err.message : "Failed to create session";
       setSessionError(msg);
       throw err;
-    } finally {
-      setCreatingSession(false);
     }
   }, [sessionId]);
 
@@ -87,7 +83,7 @@ export default function SessionStart() {
       setIsUploading(true);
       setUploadProgress(5);
       setUploadStageLabel("Uploading…");
-      setSlides([]);
+      setSlideCount(0);
       setUploadedFileName(null);
 
       try {
@@ -126,7 +122,7 @@ export default function SessionStart() {
           });
         }, 500);
 
-        setSlides(resp.slides ?? []);
+        setSlideCount(resp.count ?? 0);
         setUploadedFileName(file.name);
         clearInterval(stage3);
         setUploadProgress(100);
@@ -145,7 +141,7 @@ export default function SessionStart() {
   // ─── Clear deck ───────────────────────────────────────────────────────────
   const handleClearDeck = useCallback(() => {
     setUploadedFileName(null);
-    setSlides([]);
+    setSlideCount(0);
     setUploadProgress(0);
     setUploadStageLabel("Uploading…");
   }, []);
@@ -213,27 +209,20 @@ export default function SessionStart() {
           </div>
         )}
 
-        {/* Onboarding steps */}
-        {creatingSession ? (
-          <div className="flex items-center gap-3 text-sm text-[#5a5a5a]">
-            <div className="w-4 h-4 rounded-full border-2 border-[#1e1e1e] border-t-[#C8FF00] animate-spin" />
-            Creating session...
-          </div>
-        ) : (
-          <OnboardingSteps
-            sessionId={sessionId ?? ""}
-            onSaveOnboardingData={handleSaveOnboardingData}
-            onUpload={handleUpload}
-            isUploading={isUploading}
-            uploadProgress={uploadProgress}
-            uploadStageLabel={uploadStageLabel}
-            uploadedFileName={uploadedFileName}
-            slides={slides}
-            slidesLoading={slidesLoading}
-            onClearDeck={handleClearDeck}
-            onStartInterview={handleStartInterview}
-          />
-        )}
+        {/* Onboarding steps — always mounted so local wizard state survives session creation */}
+        <OnboardingSteps
+          sessionId={sessionId ?? ""}
+          onSaveOnboardingData={handleSaveOnboardingData}
+          onUpload={handleUpload}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+          uploadStageLabel={uploadStageLabel}
+          uploadedFileName={uploadedFileName}
+          slideCount={slideCount}
+          slidesLoading={slidesLoading}
+          onClearDeck={handleClearDeck}
+          onStartInterview={handleStartInterview}
+        />
       </main>
     </div>
   );

@@ -35,7 +35,7 @@ interface OnboardingStepsProps {
   uploadProgress: number;
   uploadStageLabel?: string;
   uploadedFileName: string | null;
-  slides: string[]; // base64 PNGs, available after upload
+  slideCount: number; // number of slides — images served via /api/session/{id}/slides/{index}
   slidesLoading: boolean;
   onClearDeck: () => void;
   /** Final action — parent navigates to the workspace */
@@ -51,13 +51,14 @@ const STEPS = [
 ];
 
 export default function OnboardingSteps({
+  sessionId,
   onSaveOnboardingData,
   onUpload,
   isUploading,
   uploadProgress,
   uploadStageLabel,
   uploadedFileName,
-  slides,
+  slideCount,
   slidesLoading,
   onClearDeck,
   onStartInterview,
@@ -340,7 +341,8 @@ export default function OnboardingSteps({
       </p>
 
       <SlideViewer
-        slides={slides}
+        sessionId={sessionId}
+        slideCount={slideCount}
         currentIndex={slideIndex}
         onSlideChange={setSlideIndex}
         isLoading={slidesLoading}
