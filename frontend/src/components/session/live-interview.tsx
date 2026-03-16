@@ -24,6 +24,9 @@ import {
   Upload,
   RefreshCw,
   FileStack,
+  X,
+  ExternalLink,
+  Mail,
 } from "lucide-react";
 import { useLiveInterview } from "@/hooks/useLiveInterview";
 import { useAudioPipeline } from "@/hooks/useAudioPipeline";
@@ -109,6 +112,79 @@ function CoachingTipsPanel({ sessionId, active }: { sessionId: string; active: b
           {active ? "Listening for coaching moments…" : "Start the interview to receive tips."}
         </p>
       )}
+    </div>
+  );
+}
+
+// ─── Waitlist modal (shown in demo mode instead of starting interview) ───────
+
+function WaitlistModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div
+        className="relative w-full max-w-md mx-4 rounded-2xl border border-[#1A3D28]/60 bg-[#0a0a0a] p-8 shadow-[0_0_120px_rgba(200,255,0,0.08),0_4px_60px_rgba(0,0,0,0.8)] animate-[phase-enter_0.3s_cubic-bezier(0.22,1,0.36,1)_both]"
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-[#3a3a3a] hover:text-[#a0a0a0] transition-colors"
+          aria-label="Close"
+        >
+          <X className="size-4" strokeWidth={1.5} />
+        </button>
+
+        {/* Content */}
+        <div className="flex flex-col items-center text-center gap-5">
+          {/* Accent line */}
+          <div className="w-8 h-px bg-[#C8FF00]/40" />
+
+          <p className="text-[10px] font-mono tracking-[0.2em] text-[#C8FF00]/60 uppercase">
+            Coming Soon
+          </p>
+
+          <h3 className="text-xl font-semibold text-[#f0f0f0] font-heading leading-snug">
+            The live AI interview is<br />not available yet
+          </h3>
+
+          <p className="text-sm text-[#5a5a5a] leading-relaxed max-w-xs">
+            Sam — our AI investor — is still in training. Join the waitlist to be the first to pitch when we launch.
+          </p>
+
+          {/* CTA */}
+          <a
+            href="https://zonda.one"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl text-sm font-semibold bg-[#C8FF00] text-black hover:bg-[#D4FF33] active:scale-[0.98] transition-all duration-200 shadow-[0_0_40px_rgba(200,255,0,0.25)]"
+          >
+            Join the Waitlist
+            <ExternalLink className="size-3.5" strokeWidth={2} />
+          </a>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 w-full">
+            <div className="flex-1 h-px bg-[#1e1e1e]" />
+            <span className="text-[10px] font-mono text-[#3a3a3a]">OR</span>
+            <div className="flex-1 h-px bg-[#1e1e1e]" />
+          </div>
+
+          {/* Contact */}
+          <a
+            href="mailto:team@zonda.one"
+            className="flex items-center gap-2 text-sm text-[#a0a0a0] hover:text-[#C8FF00] transition-colors group"
+          >
+            <Mail className="size-3.5 text-[#5a5a5a] group-hover:text-[#C8FF00] transition-colors" strokeWidth={1.5} />
+            team@zonda.one
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
@@ -682,6 +758,9 @@ export default function LiveInterview({
   // ─── End-call confirm dialog state ──────────────────────────────────────────
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
+  // ─── Waitlist modal state (demo mode) ─────────────────────────────────────
+  const [showWaitlist, setShowWaitlist] = useState(false);
+
   // ─── Hooks ──────────────────────────────────────────────────────────────────
   const interview = useLiveInterview();
   const pipeline = useAudioPipeline();
@@ -796,12 +875,10 @@ export default function LiveInterview({
     }
   }, [lifecycle, interview.status, interview.elapsedSeconds, interview.ws, pipeline, analyser, onInterviewEnded]);
 
-  // ─── Begin interview (user clicked "Begin Interview") ───────────────────────
+  // ─── Begin interview → show waitlist (demo mode) ─────────────────────────────
   const handleBegin = useCallback(() => {
-    setLifecycle("active");
-    endedFired.current = false;
-    interview.connect(sessionId);
-  }, [interview, sessionId]);
+    setShowWaitlist(true);
+  }, []);
 
   // ─── Redo interview ──────────────────────────────────────────────────────────
   const handleRedo = useCallback(() => {
@@ -856,12 +933,15 @@ export default function LiveInterview({
   // ─── Render: Pre-interview ───────────────────────────────────────────────────
   if (lifecycle === "pre") {
     return (
-      <PreInterviewScreen
-        slideCount={slideCount}
-        hasDeck={slideCount > 0}
-        onBegin={handleBegin}
-        isConnecting={interview.status === "connecting"}
-      />
+      <>
+        <PreInterviewScreen
+          slideCount={slideCount}
+          hasDeck={slideCount > 0}
+          onBegin={handleBegin}
+          isConnecting={interview.status === "connecting"}
+        />
+        {showWaitlist && <WaitlistModal onClose={() => setShowWaitlist(false)} />}
+      </>
     );
   }
 
