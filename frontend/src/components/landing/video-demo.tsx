@@ -11,18 +11,16 @@ export default function VideoDemo() {
         {/* Header */}
         <div ref={headerRef} className="text-center mb-12">
           <p
-            className={`anim-hidden text-sm font-mono text-chartreuse tracking-widest uppercase mb-4 ${
-              headerInView ? "anim-fade-up" : ""
-            }`}
+            className={`anim-hidden text-sm font-mono text-chartreuse tracking-widest uppercase mb-4 ${headerInView ? "anim-fade-up" : ""
+              }`}
           >
             See it in action
           </p>
           <h2
-            className={`anim-hidden text-3xl sm:text-4xl font-heading font-bold tracking-tight text-white ${
-              headerInView ? "anim-fade-up anim-delay-100" : ""
-            }`}
+            className={`anim-hidden text-3xl sm:text-4xl font-heading font-bold tracking-tight text-white ${headerInView ? "anim-fade-up anim-delay-100" : ""
+              }`}
           >
-            Watch a 2-minute walkthrough
+            Watch a 4-minute walkthrough
           </h2>
         </div>
 

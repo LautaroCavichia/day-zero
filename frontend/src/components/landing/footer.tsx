@@ -40,11 +40,16 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="mt-10 pt-6 border-t border-[#1a1a1a] flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-[11px] font-mono text-[#5a5a5a]">
-            &copy; {new Date().getFullYear()} DayZero. Built for founders who want the truth.
+            &copy; {new Date().getFullYear()} DayZero.
           </p>
-          <p className="text-[11px] font-mono text-[#3a3a3a]">
-            no cheerleaders · only evidence
-          </p>
+          <a
+            href="https://zonda.one"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-mono text-[#3a3a3a] hover:text-[#ff6200] transition-colors"
+          >
+            Developed by zonda.one
+          </a>
         </div>
       </div>
     </footer>
