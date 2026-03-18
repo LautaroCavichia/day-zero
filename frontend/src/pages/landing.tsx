@@ -5,6 +5,7 @@ import Tension from "@/components/landing/tension";
 import Features from "@/components/landing/features";
 import VideoDemo from "@/components/landing/video-demo";
 import OutputPreview from "@/components/landing/output-preview";
+import Ecosystems from "@/components/landing/ecosystems";
 import FinalCta from "@/components/landing/final-cta";
 import Footer from "@/components/landing/footer";
 
@@ -19,6 +20,7 @@ export default function Landing() {
         <Features />
         <VideoDemo />
         <OutputPreview />
+        <Ecosystems />
         <FinalCta />
       </main>
       <Footer />

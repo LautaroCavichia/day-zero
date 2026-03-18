@@ -35,6 +35,12 @@ export default function Nav() {
           >
             Demo
           </a>
+          <a
+            href="#ecosystems"
+            className="text-sm text-[#5a5a5a] hover:text-[#f0f0f0] transition-colors hidden sm:block"
+          >
+            Ecosystems
+          </a>
 
           {/* CTA — slides in when user scrolls past hero */}
           <a
